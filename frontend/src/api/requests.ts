@@ -5,8 +5,10 @@ import type {
   RequestPayload,
   ReviewPage,
   ReviewQuery,
+  SavedRequest,
   StatusCounts,
   VacationRequest,
+  WithdrawScope,
 } from './types';
 
 // ---- Own requests (all roles) ------------------------------------------------
@@ -19,20 +21,22 @@ export async function listMyRequests(query: MineQuery = {}): Promise<MinePage> {
   return data;
 }
 
-export async function createRequest(payload: RequestPayload): Promise<VacationRequest> {
-  const { data } = await http.post<VacationRequest>('/requests', payload);
+/** Alone, or with `colleagueIds` (a trip). `warnings` lists colleagues whose pending plans overlap. */
+export async function createRequest(payload: RequestPayload): Promise<SavedRequest> {
+  const { data } = await http.post<SavedRequest>('/requests', payload);
   return data;
 }
 
-/** Edit an own Pending request. */
-export async function updateRequest(id: number, payload: RequestPayload): Promise<VacationRequest> {
-  const { data } = await http.put<VacationRequest>(`/requests/${id}`, payload);
+/** Edit an own Pending request; a trip's organizer moves everyone's dates. */
+export async function updateRequest(id: number, payload: RequestPayload): Promise<SavedRequest> {
+  const { colleagueIds: _ignored, ...body } = payload;
+  const { data } = await http.put<SavedRequest>(`/requests/${id}`, body);
   return data;
 }
 
-/** Withdraw an own Pending request. */
-export async function withdrawRequest(id: number): Promise<void> {
-  await http.delete(`/requests/${id}`);
+/** Withdraw an own Pending request (or leave a trip). `group`: cancel the trip for everyone still pending. */
+export async function withdrawRequest(id: number, scope: WithdrawScope = 'self'): Promise<void> {
+  await http.delete(`/requests/${id}`, { params: scope === 'group' ? { scope } : undefined });
 }
 
 // ---- Review (Validator, WorkspaceAdmin) -----------------------------------------
@@ -50,5 +54,17 @@ export async function approveRequest(id: number): Promise<VacationRequest> {
 
 export async function rejectRequest(id: number, comment: string): Promise<VacationRequest> {
   const { data } = await http.post<VacationRequest>(`/requests/${id}/reject`, { comment });
+  return data;
+}
+
+/** Approve every Pending request of a trip at once. Returns the rows that were approved. */
+export async function approveGroup(groupId: number): Promise<VacationRequest[]> {
+  const { data } = await http.post<VacationRequest[]>(`/groups/${groupId}/approve`);
+  return data;
+}
+
+/** Reject every Pending request of a trip with one comment. Returns the rows that were rejected. */
+export async function rejectGroup(groupId: number, comment: string): Promise<VacationRequest[]> {
+  const { data } = await http.post<VacationRequest[]>(`/groups/${groupId}/reject`, { comment });
   return data;
 }

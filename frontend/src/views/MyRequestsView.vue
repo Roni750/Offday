@@ -16,13 +16,24 @@ import { useConfirmStore } from '@/stores/confirm';
 import { useMyRequestsStore } from '@/stores/myRequests';
 import { useRequestDrawerStore } from '@/stores/requestDrawer';
 import { daysUntil, formatDayCount, formatDays } from '@/utils/dates';
-import { STATUS_TABS, type StatusTab, reasonText, shortName } from '@/utils/requests';
+import {
+  STATUS_TABS,
+  type StatusTab,
+  firstName,
+  isTripMember,
+  isTripOrganizer,
+  reasonText,
+  shortName,
+  tripMates,
+  tripTooltip,
+  withText,
+} from '@/utils/requests';
 
 const auth = useAuthStore();
 const mine = useMyRequestsStore();
 const drawer = useRequestDrawerStore();
 const time = useOfficeTime();
-const { confirm } = useConfirmStore();
+const { confirm, choose } = useConfirmStore();
 const { list, counts, balance, listLoading } = storeToRefs(mine);
 
 onMounted(() => {
@@ -58,10 +69,42 @@ const nextTimeOff = computed(() => {
 
 // Count and days come from the same source and year (the leave balance), so they always agree.
 async function confirmWithdraw(request: VacationRequest): Promise<void> {
+  // The organizer of a trip chooses: leave it themselves, or cancel it for everyone still pending.
+  const othersPending = tripMates(request, auth.me?.id).filter((m) => m.status === 'Pending');
+  if (isTripOrganizer(request, auth.me?.id) && othersPending.length) {
+    const pending = othersPending.length + 1;
+    const choice = await choose({
+      title: 'Withdraw from this trip?',
+      body: `${time.range(request)} · you can withdraw just yourself and let the others keep their requests, or cancel the trip for everyone still pending. Decided requests stay as they are.`,
+      alternativeLabel: 'Withdraw just me',
+      confirmLabel: `Cancel for everyone (${pending} pending)`,
+      tone: 'danger',
+    });
+    if (choice === 'alternative') await mine.withdraw(request, 'self');
+    else if (choice === 'confirm') await mine.withdraw(request, 'group');
+    return;
+  }
   const ok = await confirm({
     title: 'Withdraw this request?',
     body: `${time.range(request)} will be removed. Validators won't review it, and you'd need to submit it again.`,
     confirmLabel: 'Withdraw request',
+    tone: 'danger',
+  });
+  if (ok) await mine.withdraw(request);
+}
+
+/** A trip's dates are frozen once anyone on it has a decision (the API refuses the edit). */
+function tripDecided(request: VacationRequest): boolean {
+  return !!request.group?.members.some((m) => m.status !== 'Pending');
+}
+
+/** A colleague put me on their trip: I can't change its dates, only leave it. */
+async function confirmLeave(request: VacationRequest): Promise<void> {
+  const organizer = request.group?.organizer ? firstName(request.group.organizer.name) : 'The organizer';
+  const ok = await confirm({
+    title: 'Leave this trip?',
+    body: `${time.range(request)} will be removed for you only. ${organizer} and the others stay on the trip.`,
+    confirmLabel: 'Leave trip',
     tone: 'danger',
   });
   if (ok) await mine.withdraw(request);
@@ -178,6 +221,22 @@ function resubmit(request: VacationRequest): void {
           <div class="flex flex-col gap-0.5">
             <span class="font-medium">{{ time.range(row) }}</span>
             <span class="font-mono text-[12px] text-muted">{{ time.times(row) }}</span>
+            <span v-if="row.group" class="mt-1 flex flex-wrap gap-1">
+              <span
+                v-if="tripMates(row, auth.me?.id).length"
+                class="inline-flex items-center gap-1 rounded-full bg-accent-tint px-2 py-[2px] text-[11px] font-medium text-ink"
+                tabindex="0"
+                v-tooltip="tripTooltip(row)"
+              >
+                <span class="h-1.5 w-1.5 rounded-full bg-accent-mark" aria-hidden="true" />{{ withText(tripMates(row, auth.me?.id)) }}
+              </span>
+              <span
+                v-if="row.addedBy"
+                class="inline-flex items-center rounded-full border border-line px-2 py-[1px] text-[11px] text-ink-2"
+              >
+                Added by {{ firstName(row.addedBy.name) }}
+              </span>
+            </span>
           </div>
         </template>
         <template #cell-days="{ row }">
@@ -195,8 +254,19 @@ function resubmit(request: VacationRequest): void {
           <StatusPill :status="row.status" />
         </template>
         <template #cell-action="{ row }">
-          <div v-if="row.status === 'Pending'" class="flex gap-2">
-            <AppButton size="xs" @click="drawer.open({ edit: row })">Edit</AppButton>
+          <div v-if="row.status === 'Pending' && isTripMember(row, auth.me?.id)" class="flex gap-2">
+            <AppButton size="xs" @click="drawer.open({ edit: row })">View</AppButton>
+            <AppButton size="xs" @click="confirmLeave(row)">Leave trip</AppButton>
+          </div>
+          <div v-else-if="row.status === 'Pending'" class="flex gap-2">
+            <span
+              v-if="tripDecided(row)"
+              tabindex="0"
+              v-tooltip="'Someone on this trip already has a decision, so its dates can’t change'"
+            >
+              <AppButton size="xs" disabled>Edit</AppButton>
+            </span>
+            <AppButton v-else size="xs" @click="drawer.open({ edit: row })">Edit</AppButton>
             <AppButton size="xs" @click="confirmWithdraw(row)">Withdraw</AppButton>
           </div>
           <span

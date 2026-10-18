@@ -7,32 +7,41 @@ export interface ConfirmOptions {
   confirmLabel: string;
   /** `danger` for destructive or hard-to-undo actions. */
   tone?: 'primary' | 'danger';
+  /** A second, alternative action shown between Cancel and the main one (see {@link choose}). */
+  alternativeLabel?: string;
 }
 
+/** What the user picked: the main action, the alternative one, or neither (Cancel, Escape, backdrop). */
+export type ConfirmChoice = 'confirm' | 'alternative' | null;
+
 interface PendingConfirm extends ConfirmOptions {
-  resolve: (confirmed: boolean) => void;
+  resolve: (choice: ConfirmChoice) => void;
 }
 
 /**
  * One app-wide confirmation dialog (rendered by ConfirmDialog in the app shell).
- * Usage: `if (await confirm({ title, body, confirmLabel })) { ... }`.
+ * Usage: `if (await confirm({ title, body, confirmLabel })) { ... }`, or `choose()` for two actions.
  */
 export const useConfirmStore = defineStore('confirm', () => {
   const current = ref<PendingConfirm | null>(null);
 
-  function confirm(options: ConfirmOptions): Promise<boolean> {
+  function choose(options: ConfirmOptions): Promise<ConfirmChoice> {
     // A new request replaces an unanswered one, which counts as cancelled.
-    current.value?.resolve(false);
+    current.value?.resolve(null);
     return new Promise((resolve) => {
       current.value = { ...options, resolve };
     });
   }
 
-  function answer(confirmed: boolean): void {
-    const pending = current.value;
-    current.value = null;
-    pending?.resolve(confirmed);
+  async function confirm(options: ConfirmOptions): Promise<boolean> {
+    return (await choose({ ...options, alternativeLabel: undefined })) === 'confirm';
   }
 
-  return { current, confirm, answer };
+  function answer(choice: boolean | ConfirmChoice): void {
+    const pending = current.value;
+    current.value = null;
+    pending?.resolve(choice === true ? 'confirm' : choice === false ? null : choice);
+  }
+
+  return { current, confirm, choose, answer };
 });

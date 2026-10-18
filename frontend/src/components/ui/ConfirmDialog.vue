@@ -38,8 +38,11 @@ useDialog(isOpen, panel, {
         >
           <h2 id="confirm-title" class="text-[18px] font-semibold tracking-[-0.02em]">{{ current.title }}</h2>
           <p id="confirm-body" class="text-[14px] leading-[1.5] text-ink-2">{{ current.body }}</p>
-          <div class="flex justify-end gap-2.5">
+          <div class="flex flex-wrap justify-end gap-2.5">
             <AppButton ref="cancelButton" @click="store.answer(false)">Cancel</AppButton>
+            <AppButton v-if="current.alternativeLabel" @click="store.answer('alternative')">
+              {{ current.alternativeLabel }}
+            </AppButton>
             <AppButton :variant="current.tone === 'danger' ? 'danger' : 'primary'" @click="store.answer(true)">
               {{ current.confirmLabel }}
             </AppButton>

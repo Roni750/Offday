@@ -38,6 +38,22 @@ export interface UserSummary {
   role: Role;
 }
 
+/** One person of a trip (vacation with colleagues). Each person has their own request and decision. */
+export interface TripMember {
+  userId: number;
+  name: string;
+  requestId: number;
+  status: Status;
+}
+
+/** The trip a request belongs to: same office, same dates. Members are listed organizer first, then by name. */
+export interface VacationGroup {
+  id: number;
+  /** Who submitted the trip: the only one who can change its dates or cancel it for everyone. */
+  organizer: { id: number; name: string } | null;
+  members: TripMember[];
+}
+
 export interface VacationRequest {
   id: number;
   user: { id: number; name: string; email: string };
@@ -50,8 +66,23 @@ export interface VacationRequest {
   days: number;
   decidedBy: { id: number; name: string } | null;
   decidedAt: string | null;
+  /** Set when a colleague put this person on their trip; null when the owner created the request. */
+  addedBy: { id: number; name: string } | null;
+  group: VacationGroup | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** A colleague whose time off overlaps a trip: Approved blocks them (409), Pending only warns (201 `warnings`). */
+export interface ParticipantConflict {
+  userId: number;
+  name: string;
+  conflict: OverlapConflict;
+}
+
+/** `POST /requests` and `PUT /requests/:id`: the caller's own row, plus colleagues with pending plans then. */
+export interface SavedRequest extends VacationRequest {
+  warnings: ParticipantConflict[];
 }
 
 export interface Paginated<T> {
@@ -109,7 +140,12 @@ export interface RequestPayload {
   startDate: string;
   endDate: string;
   reason?: string;
+  /** "Going with": up to 9 colleagues of the office (create only; a trip's members are fixed). */
+  colleagueIds?: number[];
 }
+
+/** `DELETE /requests/:id?scope=`: `group` cancels a trip for everyone still pending (organizer only). */
+export type WithdrawScope = 'self' | 'group';
 
 export interface MonthlyStat {
   /** `"2026-07"` */
@@ -246,8 +282,10 @@ export interface OverlapConflict {
 export interface ApiErrorDetails {
   /** VALIDATION_ERROR: field → message. */
   fields?: Record<string, string>;
-  /** OVERLAP: the request that clashes. */
+  /** OVERLAP: the caller's own request that clashes. */
   conflict?: OverlapConflict;
+  /** OVERLAP on a trip: every colleague who already has approved time off then. */
+  conflicts?: ParticipantConflict[];
   [key: string]: unknown;
 }
 

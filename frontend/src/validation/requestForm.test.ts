@@ -1,15 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import { DateTime } from 'luxon';
 import type { VacationRequest } from '@/api/types';
-import { type RequestFormValues, buildRequestFormSchema, toFieldErrors } from './requestForm';
+import { type RequestFormContext, type RequestFormValues, buildRequestFormSchema, findColleagueOverlaps, toFieldErrors } from './requestForm';
 
 const ZONE = 'Asia/Jerusalem';
 // Sunday 18 Oct 2026 in the office; the earliest valid start is Monday 19 Oct.
 const TODAY = DateTime.fromISO('2026-10-18', { zone: ZONE });
 
-const existing = (id: number, start: string, end: string, status: VacationRequest['status'] = 'Approved'): VacationRequest => ({
+const LINA = { id: 1, name: 'Lina Haddad', email: 'lina@acme.io' };
+const DANA = { id: 2, name: 'Dana Cohen', email: 'dana@acme.io' };
+const TOM = { id: 3, name: 'Tom Becker', email: 'tom@acme.io' };
+
+const existing = (
+  id: number,
+  start: string,
+  end: string,
+  status: VacationRequest['status'] = 'Approved',
+  user = LINA,
+  groupId?: number,
+): VacationRequest => ({
   id,
-  user: { id: 1, name: 'Lina Haddad', email: 'lina@acme.io' },
+  user,
   startDate: DateTime.fromISO(start, { zone: ZONE }).toUTC().toISO()!,
   endDate: DateTime.fromISO(end, { zone: ZONE }).toUTC().toISO()!,
   reason: null,
@@ -18,6 +29,8 @@ const existing = (id: number, start: string, end: string, status: VacationReques
   days: 1,
   decidedBy: null,
   decidedAt: null,
+  addedBy: null,
+  group: groupId ? { id: groupId, organizer: { id: LINA.id, name: LINA.name }, members: [] } : null,
   createdAt: '2026-10-01T00:00:00Z',
   updatedAt: '2026-10-01T00:00:00Z',
 });
@@ -28,6 +41,7 @@ const values = (overrides: Partial<RequestFormValues> = {}): RequestFormValues =
   endDate: '2026-11-06',
   endTime: '18:00',
   reason: '',
+  colleagueIds: [],
   ...overrides,
 });
 
@@ -48,6 +62,7 @@ describe('request form schema', () => {
       startDate: '2026-11-02T09:00:00+02:00',
       endDate: '2026-11-06T18:00:00+02:00',
       reason: 'Family trip',
+      colleagueIds: [],
     });
   });
 
@@ -140,6 +155,78 @@ describe('request form schema', () => {
     });
     it('ignores the request being edited', () => {
       expect(validate(values(), [approved], 7).result.success).toBe(true);
+    });
+    it('counts my own trip rows too', () => {
+      expect(validate(values(), [existing(10, '2026-11-03T09:00', '2026-11-03T18:00', 'Pending', LINA, 5)]).errors.endDate).toMatch(/overlap your pending/);
+    });
+  });
+
+  describe('going with colleagues', () => {
+    const withTeam = (form: RequestFormValues, teamRequests: VacationRequest[], extra: Partial<RequestFormContext> = {}) => {
+      const result = buildRequestFormSchema({ zone: ZONE, workDays: MON_FRI, today: TODAY, ownRequests: [], teamRequests, ...extra }).safeParse(form);
+      return { result, errors: result.success ? {} : toFieldErrors(result.error) };
+    };
+
+    it('sends the colleagues in the payload', () => {
+      const { result } = withTeam(values({ colleagueIds: [DANA.id, TOM.id] }), []);
+      expect(result.success && result.data.payload.colleagueIds).toEqual([DANA.id, TOM.id]);
+    });
+
+    it('blocks a colleague with approved time off in the range, naming them', () => {
+      const team = [existing(20, '2026-11-04T09:00', '2026-11-05T18:00', 'Approved', DANA)];
+      expect(withTeam(values({ colleagueIds: [DANA.id] }), team).errors.colleagueIds).toBe(
+        'Dana Cohen already has approved time off 4–5 Nov, so they can’t join these dates.',
+      );
+    });
+
+    it('names every blocked colleague', () => {
+      const team = [
+        existing(20, '2026-11-04T09:00', '2026-11-05T18:00', 'Approved', DANA),
+        existing(21, '2026-11-02T09:00', '2026-11-02T13:00', 'Approved', TOM),
+      ];
+      expect(withTeam(values({ colleagueIds: [DANA.id, TOM.id] }), team).errors.colleagueIds).toBe(
+        'Dana Cohen (4–5 Nov) and Tom Becker (2 Nov) already have approved time off then, so they can’t join these dates.',
+      );
+    });
+
+    it('only warns about a pending overlap (no error)', () => {
+      const team = [existing(22, '2026-11-04T09:00', '2026-11-05T18:00', 'Pending', DANA)];
+      expect(withTeam(values({ colleagueIds: [DANA.id] }), team).result.success).toBe(true);
+      const start = DateTime.fromISO('2026-11-02T09:00', { zone: ZONE });
+      const end = DateTime.fromISO('2026-11-06T18:00', { zone: ZONE });
+      const { blocked, warned } = findColleagueOverlaps(team, [DANA.id], start, end, ZONE);
+      expect(blocked).toEqual([]);
+      expect(warned.map((w) => [w.userId, w.name, w.request.id])).toEqual([[DANA.id, 'Dana Cohen', 22]]);
+    });
+
+    it('lets approved win over pending for the same colleague', () => {
+      const team = [
+        existing(23, '2026-11-02T09:00', '2026-11-02T18:00', 'Pending', DANA),
+        existing(24, '2026-11-05T09:00', '2026-11-05T18:00', 'Approved', DANA),
+      ];
+      expect(withTeam(values({ colleagueIds: [DANA.id] }), team).errors.colleagueIds).toMatch(/approved time off 5 Nov/);
+    });
+
+    it('ignores rejected requests, touching periods and teammates who aren’t going', () => {
+      const team = [
+        existing(25, '2026-11-03T09:00', '2026-11-03T18:00', 'Rejected', DANA),
+        existing(26, '2026-11-06T18:00', '2026-11-07T18:00', 'Approved', DANA),
+        existing(27, '2026-11-03T09:00', '2026-11-03T18:00', 'Approved', TOM),
+      ];
+      expect(withTeam(values({ colleagueIds: [DANA.id] }), team).result.success).toBe(true);
+    });
+
+    it('ignores the rows of the trip being edited', () => {
+      const team = [existing(28, '2026-11-02T09:00', '2026-11-06T18:00', 'Approved', DANA, 9)];
+      expect(withTeam(values({ colleagueIds: [DANA.id] }), team, { editingGroupId: 9 }).result.success).toBe(true);
+      expect(withTeam(values({ colleagueIds: [DANA.id] }), team, { editingGroupId: 8 }).result.success).toBe(false);
+    });
+
+    it('allows at most 9 colleagues, each once', () => {
+      const ten = Array.from({ length: 10 }, (_, i) => i + 10);
+      expect(withTeam(values({ colleagueIds: ten }), []).errors.colleagueIds).toMatch(/up to 9/);
+      expect(withTeam(values({ colleagueIds: ten.slice(0, 9) }), []).result.success).toBe(true);
+      expect(withTeam(values({ colleagueIds: [DANA.id, DANA.id] }), []).errors.colleagueIds).toMatch(/only be added once/);
     });
   });
 });
