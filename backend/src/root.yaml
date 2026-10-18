@@ -1,12 +1,96 @@
 openapi: 3.0.3
 info:
-  title: Vacation Manager API
+  title: Offday API
   version: 1.0.0
+  description: |
+    Vacation request management, multi-tenant (workspace > office > users).
+    Routes are dispatched by commoneventframework from this file (x-handler / x-inputParser).
+    Full contract: docs/api-contract.md. Note: CEF reads every key under a path as an HTTP method,
+    so parameters are declared per operation.
+tags:
+  - name: Auth
+  - name: My requests
+  - name: Review
+  - name: Office
+  - name: System
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string, example: VALIDATION_ERROR }
+            message: { type: string }
+            details: { type: object }
+    Period:
+      type: object
+      required: [startDate, endDate]
+      properties:
+        startDate: { type: string, format: date-time, example: "2026-11-03T09:00:00+02:00" }
+        endDate: { type: string, format: date-time, example: "2026-11-03T13:00:00+02:00" }
+        reason: { type: string, maxLength: 240, nullable: true }
+  responses:
+    Error:
+      description: Error in the contract's format
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+security:
+  - bearer: []
 paths:
   /health:
     get:
+      tags: [System]
+      security: []
       x-handler: handlers/health#getHealth
       summary: Service and database health check
       responses:
-        '200':
-          description: Service and database are reachable
+        "200": { description: Service and database are reachable }
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      security: []
+      x-inputParser: handlers/auth#parseLogin
+      x-handler: handlers/auth#login
+      summary: Sign in with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, example: lina@acme.io }
+                password: { type: string, example: demo1234 }
+      responses:
+        "200": { description: "{ token, user }" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /me:
+    get:
+      tags: [Auth]
+      x-inputParser: handlers/auth#parseAuthenticated
+      x-handler: handlers/auth#getMe
+      summary: The signed-in user, office and workspace
+      responses:
+        "200": { description: Me }
+
+  /me/balance:
+    get:
+      tags: [My requests]
+      x-inputParser: handlers/auth#parseBalance
+      x-handler: handlers/auth#getMyBalance
+      summary: Leave balance for a year (25-day allowance)
+      parameters:
+        - { in: query, name: year, schema: { type: integer } }
+      responses:
+        "200": { description: "{ year, allowance, usedDays, pendingDays, remainingDays }" }
