@@ -168,7 +168,7 @@ sequenceDiagram
     L-->>AX: 200 JSON
     AX-->>ST: response
     ST->>ST: bump revision counter
-    ST-->>UI: success toast; calendar, overview and queue reload
+    ST-->>UI: success toast, then calendar, overview and queue reload
 ```
 
 If anything throws at any step (a bad token, a 409 because another validator decided first, a failing subscriber),
