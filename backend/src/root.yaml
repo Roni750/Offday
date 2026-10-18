@@ -208,3 +208,177 @@ paths:
         - { in: query, name: year, schema: { type: integer } }
       responses:
         "200": { description: Overview }
+
+  /team/calendar:
+    get:
+      tags: [Office]
+      x-inputParser: handlers/office#parseCalendar
+      x-handler: handlers/office#teamCalendar
+      summary: Office members and their Pending/Approved requests in a range
+      parameters:
+        - { in: query, name: from, required: true, schema: { type: string, format: date-time } }
+        - { in: query, name: to, required: true, schema: { type: string, format: date-time } }
+      responses:
+        "200": { description: "{ users, requests }" }
+
+  /office/users:
+    get:
+      tags: [Office]
+      x-inputParser: handlers/auth#parseAuthenticated
+      x-handler: handlers/office#officeUsers
+      summary: Users of the caller's office (Validator, OfficeAdmin)
+      responses:
+        "200": { description: "UserSummary[]" }
+
+  /users/:id/role:
+    put:
+      tags: [Office]
+      x-inputParser: handlers/office#parseChangeRole
+      x-handler: handlers/office#changeRole
+      summary: Change a user's role (OfficeAdmin; ChangeUserRoleCommand)
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: { type: string, enum: [Requester, Validator, OfficeAdmin] }
+      responses:
+        "200": { description: UserSummary }
+        "403": { $ref: "#/components/responses/Error" }
+
+  /office:
+    get:
+      tags: [Office]
+      x-inputParser: handlers/auth#parseAuthenticated
+      x-handler: handlers/office#getOffice
+      summary: The caller's office and workspace
+      responses:
+        "200": { description: Office }
+
+  /office/timezone:
+    put:
+      tags: [Office]
+      x-inputParser: handlers/office#parseTimezone
+      x-handler: handlers/office#updateTimezone
+      summary: Change the office time zone (OfficeAdmin; UpdateOfficeTimezoneCommand)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [timezone]
+              properties:
+                timezone: { type: string, example: Asia/Jerusalem }
+      responses:
+        "200": { description: Office }
+        "400": { $ref: "#/components/responses/Error" }
+
+  /workspace/offices:
+    get:
+      tags: [Office]
+      x-inputParser: handlers/auth#parseAuthenticated
+      x-handler: handlers/office#workspaceOffices
+      summary: Every office of the caller's workspace with its headcount per role (OfficeAdmin)
+      responses:
+        "200": { description: "WorkspaceOffice[]" }
+        "403": { $ref: "#/components/responses/Error" }
+
+  /offices/:id:
+    get:
+      tags: [Office]
+      x-inputParser: handlers/office#parseOfficeId
+      x-handler: handlers/office#getWorkspaceOffice
+      summary: An office of the caller's workspace (OfficeAdmin)
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: Office }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /offices/:id/users:
+    get:
+      tags: [Office]
+      x-inputParser: handlers/office#parseOfficeId
+      x-handler: handlers/office#workspaceOfficeUsers
+      summary: Users of an office of the caller's workspace (OfficeAdmin)
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: "UserSummary[]" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /offices/:id/timezone:
+    put:
+      tags: [Office]
+      x-inputParser: handlers/office#parseOfficeTimezone
+      x-handler: handlers/office#updateTimezone
+      summary: Change an office's time zone (OfficeAdmin of the same workspace; UpdateOfficeTimezoneCommand)
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [timezone]
+              properties:
+                timezone: { type: string, example: Europe/Paris }
+      responses:
+        "200": { description: Office }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /offices/:id/work-week:
+    put:
+      tags: [Office]
+      x-inputParser: handlers/office#parseOfficeWorkWeek
+      x-handler: handlers/office#updateWorkWeek
+      summary: Set an office's working days (OfficeAdmin of the same workspace; UpdateOfficeWorkWeekCommand)
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [workDays]
+              properties:
+                workDays:
+                  type: array
+                  items: { type: integer, minimum: 1, maximum: 7 }
+      responses:
+        "200": { description: Office }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /office/work-week:
+    put:
+      tags: [Office]
+      x-inputParser: handlers/office#parseWorkWeek
+      x-handler: handlers/office#updateWorkWeek
+      summary: Set the office's working days (OfficeAdmin; UpdateOfficeWorkWeekCommand)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [workDays]
+              properties:
+                workDays:
+                  type: array
+                  description: ISO weekdays, 1 = Monday ... 7 = Sunday
+                  items: { type: integer, minimum: 1, maximum: 7 }
+                  example: [7, 1, 2, 3, 4]
+      responses:
+        "200": { description: Office }
+        "400": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }

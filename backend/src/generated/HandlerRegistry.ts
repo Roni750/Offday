@@ -4,6 +4,7 @@ import { registerHandlerRefs } from "commoneventframework";
 
 import * as __cef_handlers_auth from "../handlers/auth";
 import * as __cef_handlers_health from "../handlers/health";
+import * as __cef_handlers_office from "../handlers/office";
 import * as __cef_handlers_requests from "../handlers/requests";
 import * as __cef_handlers_review from "../handlers/review";
 
@@ -17,6 +18,22 @@ export class HandlerRegistry {
 			"handlers/auth#parseBalance": __cef_handlers_auth.parseBalance,
 			"handlers/auth#parseLogin": __cef_handlers_auth.parseLogin,
 			"handlers/health#getHealth": __cef_handlers_health.getHealth,
+			"handlers/office#changeRole": __cef_handlers_office.changeRole,
+			"handlers/office#getOffice": __cef_handlers_office.getOffice,
+			"handlers/office#getWorkspaceOffice": __cef_handlers_office.getWorkspaceOffice,
+			"handlers/office#officeUsers": __cef_handlers_office.officeUsers,
+			"handlers/office#parseCalendar": __cef_handlers_office.parseCalendar,
+			"handlers/office#parseChangeRole": __cef_handlers_office.parseChangeRole,
+			"handlers/office#parseOfficeId": __cef_handlers_office.parseOfficeId,
+			"handlers/office#parseOfficeTimezone": __cef_handlers_office.parseOfficeTimezone,
+			"handlers/office#parseOfficeWorkWeek": __cef_handlers_office.parseOfficeWorkWeek,
+			"handlers/office#parseTimezone": __cef_handlers_office.parseTimezone,
+			"handlers/office#parseWorkWeek": __cef_handlers_office.parseWorkWeek,
+			"handlers/office#teamCalendar": __cef_handlers_office.teamCalendar,
+			"handlers/office#updateTimezone": __cef_handlers_office.updateTimezone,
+			"handlers/office#updateWorkWeek": __cef_handlers_office.updateWorkWeek,
+			"handlers/office#workspaceOfficeUsers": __cef_handlers_office.workspaceOfficeUsers,
+			"handlers/office#workspaceOffices": __cef_handlers_office.workspaceOffices,
 			"handlers/requests#createRequest": __cef_handlers_requests.createRequest,
 			"handlers/requests#listMine": __cef_handlers_requests.listMine,
 			"handlers/requests#parseCreate": __cef_handlers_requests.parseCreate,
