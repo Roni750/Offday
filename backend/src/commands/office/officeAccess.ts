@@ -12,6 +12,13 @@ export const assertWorkspaceAdmin = (actor: Actor, action: string): void => {
 	if (actor.role !== Role.WorkspaceAdmin) throw new ForbiddenError(`Only workspace admins can ${action}`);
 };
 
+/** An office of the actor's workspace, without locking it (for changes that don't touch the office row). */
+export const findManagedOffice = async (tx: EntityManager, actor: Actor, officeId: number): Promise<Office> => {
+	const office = await tx.findOneBy(Office, { id: officeId });
+	if (!office || office.workspaceId !== actor.workspaceId) throw new NotFoundError("Office not found");
+	return office;
+};
+
 /** Locks the office row for the rest of the transaction. */
 export const lockManagedOffice = async (tx: EntityManager, actor: Actor, officeId: number): Promise<Office> => {
 	const office = await tx.findOne(Office, { where: { id: officeId }, lock: { mode: "pessimistic_write" } });

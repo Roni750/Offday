@@ -5,6 +5,7 @@ import { registerHandlerRefs } from "commoneventframework";
 import * as __cef_handlers_auth from "../handlers/auth";
 import * as __cef_handlers_health from "../handlers/health";
 import * as __cef_handlers_holidays from "../handlers/holidays";
+import * as __cef_handlers_invitations from "../handlers/invitations";
 import * as __cef_handlers_office from "../handlers/office";
 import * as __cef_handlers_requests from "../handlers/requests";
 import * as __cef_handlers_review from "../handlers/review";
@@ -21,6 +22,16 @@ export class HandlerRegistry {
 			"handlers/health#getHealth": __cef_handlers_health.getHealth,
 			"handlers/holidays#listHolidays": __cef_handlers_holidays.listHolidays,
 			"handlers/holidays#parseHolidays": __cef_handlers_holidays.parseHolidays,
+			"handlers/invitations#acceptInvitation": __cef_handlers_invitations.acceptInvitation,
+			"handlers/invitations#createInvitation": __cef_handlers_invitations.createInvitation,
+			"handlers/invitations#listInvitations": __cef_handlers_invitations.listInvitations,
+			"handlers/invitations#parseAcceptInvitation": __cef_handlers_invitations.parseAcceptInvitation,
+			"handlers/invitations#parseCreateInvitation": __cef_handlers_invitations.parseCreateInvitation,
+			"handlers/invitations#parseListInvitations": __cef_handlers_invitations.parseListInvitations,
+			"handlers/invitations#parsePreviewInvitation": __cef_handlers_invitations.parsePreviewInvitation,
+			"handlers/invitations#parseRevokeInvitation": __cef_handlers_invitations.parseRevokeInvitation,
+			"handlers/invitations#previewInvitation": __cef_handlers_invitations.previewInvitation,
+			"handlers/invitations#revokeInvitation": __cef_handlers_invitations.revokeInvitation,
 			"handlers/office#changeRole": __cef_handlers_office.changeRole,
 			"handlers/office#getOffice": __cef_handlers_office.getOffice,
 			"handlers/office#getWorkspaceOffice": __cef_handlers_office.getWorkspaceOffice,

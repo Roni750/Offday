@@ -23,6 +23,13 @@ import { toErrorResponse } from "./http/respond";
 const LOCAL_ONLY_ROUTES = new Set(["/context", "/dependencies"]);
 const isLambda = () => Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
 
+// Invitation responses carry a one-time link token, a fresh session or an account's details: never cache them.
+const NO_STORE_PATH = /\/invitations(\/|$)/;
+const withCachePolicy = (event: CommonEvent, response: APIGatewayProxyStructuredResultV2): APIGatewayProxyStructuredResultV2 => {
+	if (NO_STORE_PATH.test(event.path)) response.headers = { ...response.headers, "Cache-Control": "no-store" };
+	return response;
+};
+
 export const handler = async (
 	event: LambdaEvent,
 	context: Context
@@ -36,6 +43,10 @@ export const handler = async (
 		return new Response(204, {});
 	}
 
+	return withCachePolicy(commonEvent, await route(commonEvent));
+};
+
+const route = async (commonEvent: CommonEvent): Promise<APIGatewayProxyStructuredResultV2> => {
 	try {
 		const routeConfig = getRouteConfig(commonEvent);
 

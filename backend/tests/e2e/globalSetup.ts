@@ -2,25 +2,12 @@
 import { ChildProcess, execSync, spawn } from "node:child_process";
 import { openSync } from "node:fs";
 import { resolve } from "node:path";
+import { resolveDatabaseUrl } from "./localDb";
 
 const BACKEND_DIR = resolve(__dirname, "../..");
 export const E2E_PORT = 8898;
-const DEFAULT_DB = "postgresql://offday:offday@localhost:5433/offday";
 
 let server: ChildProcess | undefined;
-
-/**
- * The suite truncates and reseeds the database, so it only runs against a local one
- * (the docker-compose Postgres by default), never against a shared or hosted database.
- */
-const resolveDatabaseUrl = (): string => {
-	const url = process.env.E2E_DATABASE_URL ?? DEFAULT_DB;
-	const host = new URL(url).hostname;
-	if (!["localhost", "127.0.0.1", "::1"].includes(host)) {
-		throw new Error(`Refusing to run e2e tests against non-local database host "${host}". Set E2E_DATABASE_URL to a local database.`);
-	}
-	return url;
-};
 
 const testEnv = (databaseUrl: string): NodeJS.ProcessEnv => ({
 	...process.env,

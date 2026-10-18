@@ -126,7 +126,7 @@ const run = async () => {
 	const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
 
 	await dataSource.transaction(async (tx) => {
-		await tx.query(`TRUNCATE audit_log, vacation_requests, users, offices, workspaces RESTART IDENTITY CASCADE`);
+		await tx.query(`TRUNCATE audit_log, invitations, vacation_requests, users, offices, workspaces RESTART IDENTITY CASCADE`);
 
 		for (const ws of WORKSPACES) {
 			const workspace = await tx.save(tx.create(Workspace, { name: ws.name, slug: ws.slug }));
