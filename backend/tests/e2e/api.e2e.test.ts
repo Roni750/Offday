@@ -913,6 +913,8 @@ describe("group requests", () => {
 	});
 
 	it("keeps a reviewer who is on the trip from deciding any of it; another reviewer can", async () => {
+		const awaiting = async (token: string) => (await api("GET", "/requests", { token })).body.awaitingMyReview as number;
+		const [omarBefore, noaBefore] = [await awaiting(omar), await awaiting(noa)];
 		const res = await trip(lina, [id.omar, id.tom], 50);
 		expect(res.status).toBe(201);
 		const groupId = res.body.group.id;
@@ -928,6 +930,11 @@ describe("group requests", () => {
 		expect((await api("POST", `/groups/${groupId}/reject`, { token: omar, body: { comment: "No" } })).status).toBe(403);
 		expect((await api("POST", `/groups/${groupId}/approve`, { token: lina })).status).toBe(403);
 		expect((await api("POST", `/groups/${groupId}/approve`, { token: camille })).status).toBe(404);
+
+		// "Awaiting my review" only counts what the reviewer can decide: none of this trip for Omar, all 3 rows for Noa.
+		expect(await awaiting(omar)).toBe(omarBefore);
+		expect(await awaiting(noa)).toBe(noaBefore + 3);
+		expect((await api("GET", "/stats/overview", { token: omar })).body.pendingCount).toBe(omarBefore);
 
 		expect((await api("POST", `/requests/${toms.id}/approve`, { token: noa })).status).toBe(200);
 		const all = await api("POST", `/groups/${groupId}/approve`, { token: noa });

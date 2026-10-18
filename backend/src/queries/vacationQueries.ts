@@ -129,12 +129,14 @@ export const listOfficeRequests = async (
 	// Pending first, then newest.
 	query.orderBy(`CASE WHEN r.status = '${VacationStatus.Pending}' THEN 0 ELSE 1 END`, "ASC").addOrderBy("r.created_at", "DESC");
 
-	// What the reviewer can act on: Pending requests of the office, excluding their own (rule 6).
+	// What the reviewer can act on: Pending requests of the office, excluding their own (rule 6)
+	// and every request of a trip they're on (rule 7).
 	const awaitingMyReview = await em.createQueryBuilder(VacationRequest, "r")
 		.innerJoin("r.user", "u")
 		.where("u.office_id = :officeId", { officeId: actor.officeId })
 		.andWhere("r.status = :pending", { pending: VacationStatus.Pending })
 		.andWhere("r.user_id <> :me", { me: actor.id })
+		.andWhere("(r.group_id IS NULL OR r.group_id NOT IN (SELECT m.group_id FROM vacation_requests m WHERE m.user_id = :me AND m.group_id IS NOT NULL))")
 		.getCount();
 
 	return { ...(await paginate(em, query, filter, actor)), counts, awaitingMyReview };
@@ -199,8 +201,15 @@ export const getOverview = async (em: EntityManager, actor: Actor, year: number)
 	const days = (r: VacationRequest) => countWorkingDays(r.startDate, r.endDate, actor);
 	const inYear = requests.filter((r) => r.startDate >= yearStart && r.startDate < yearEnd);
 	const pending = requests.filter((r) => r.status === VacationStatus.Pending);
-	// "Awaiting review" counts what the viewer can decide: not their own requests (rule 6).
-	const awaitingReview = pending.filter((r) => r.userId !== actor.id);
+	// "Awaiting review" counts what the viewer can decide: not their own requests (rule 6),
+	// and nothing of a trip they're on (rule 7).
+	const myTrips = new Set(
+		(await em.createQueryBuilder(VacationRequest, "m")
+			.select("DISTINCT m.group_id", "groupId")
+			.where("m.user_id = :me AND m.group_id IS NOT NULL", { me: actor.id })
+			.getRawMany<{ groupId: number }>()).map((row) => row.groupId),
+	);
+	const awaitingReview = pending.filter((r) => r.userId !== actor.id && !(r.groupId !== null && myTrips.has(r.groupId)));
 	const approvedInYear = inYear.filter((r) => r.status === VacationStatus.Approved);
 	const decidedInYear = inYear.filter((r) => r.status !== VacationStatus.Pending);
 

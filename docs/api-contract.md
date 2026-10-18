@@ -136,7 +136,7 @@ interface ParticipantConflict {
 ### Review (Validator, WorkspaceAdmin)
 | Method | Path | Body | Response |
 |---|---|---|---|
-| GET | `/requests?status=&userId=&page=&pageSize=` | | `Paginated<VacationRequest>` for the office; Pending first, then newest. Response also has `counts: { all, Pending, Approved, Rejected }` respecting `userId`, and `awaitingMyReview` (Pending requests the caller can decide, i.e. not their own) |
+| GET | `/requests?status=&userId=&page=&pageSize=` | | `Paginated<VacationRequest>` for the office; Pending first, then newest. Response also has `counts: { all, Pending, Approved, Rejected }` respecting `userId`, and `awaitingMyReview` (Pending requests the caller can decide: not their own, and none of a trip they're on; `/stats/overview`'s `pendingCount` uses the same rule) |
 | POST | `/requests/:id/approve` | | `VacationRequest` |
 | POST | `/requests/:id/reject` | `{ comment }` | `VacationRequest` |
 | POST | `/groups/:id/approve` | | `VacationRequest[]`: every Pending row of the trip, approved atomically (rule 7) |
