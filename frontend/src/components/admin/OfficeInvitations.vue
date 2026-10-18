@@ -83,7 +83,12 @@ function when(invitation: InvitationSummary): { text: string; tooltip: string } 
   };
 }
 
-const STATUS_LABELS: Record<Exclude<InvitationStatus, 'Active'>, string> = { Expired: 'Expired', Revoked: 'Revoked', UsedUp: 'Used up' };
+const STATUS_LABELS: Record<Exclude<InvitationStatus, 'Active'>, string> = {
+  Expired: 'Expired',
+  Revoked: 'Revoked',
+  UsedUp: 'Used up',
+  CreatorLostAccess: 'Creator lost access',
+};
 
 // ---- Revoking ------------------------------------------------------------------
 
@@ -173,13 +178,12 @@ async function openForm(): Promise<void> {
 }
 
 const submit = handleSubmit(
-  async (formValues) => {
-    // The schema's output is the API payload; recompute it from the validated values.
-    const parsed = schema.safeParse(formValues);
-    if (!parsed.success) return;
+  // vee-validate passes the schema's output, which is already the API payload. (Parsing it again with the
+  // form schema failed, because the payload lacks form-only fields such as maxUses, and nothing was sent.)
+  async (payload) => {
     generalError.value = undefined;
     try {
-      const result = await invitationsApi.createInvitation(props.office.id, parsed.data);
+      const result = await invitationsApi.createInvitation(props.office.id, payload);
       invitations.value = [result.invitation, ...invitations.value];
       created.value = { id: result.invitation.id, link: `${window.location.origin}/join/${result.token}`, invitation: result.invitation };
       copied.value = false;
