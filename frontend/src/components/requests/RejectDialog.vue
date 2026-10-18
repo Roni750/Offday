@@ -12,7 +12,12 @@ import { formatDayCount } from '@/utils/dates';
 import { COMMENT_MAX, reasonText } from '@/utils/requests';
 
 const review = useReviewStore();
-const { rejectTarget: target } = storeToRefs(review);
+const { rejectTarget: target, rejectScope: scope } = storeToRefs(review);
+
+/** "Reject all": everyone on the trip who is still pending gets the same comment. */
+const isGroup = computed(() => scope.value === 'group' && !!target.value?.group);
+const pendingPeople = computed(() => target.value?.group?.members.filter((m) => m.status === 'Pending') ?? []);
+const organizerName = computed(() => target.value?.group?.organizer?.name ?? 'the organizer');
 const time = useOfficeTime();
 const toast = useToast();
 
@@ -45,13 +50,14 @@ async function confirm(): Promise<void> {
   const text = comment.value.trim();
   if (!text) {
     showError.value = true;
-    toast.error('Comment required', 'Add a comment before rejecting this request.');
+    toast.error('Comment required', isGroup.value ? 'Add a comment before rejecting this trip.' : 'Add a comment before rejecting this request.');
     textarea.value?.focus();
     return;
   }
   submitting.value = true;
   try {
-    await review.reject(request, text);
+    if (isGroup.value) await review.rejectGroup(request, text);
+    else await review.reject(request, text);
     review.closeReject();
   } catch (error) {
     serverError.value = toApiError(error).fieldErrors.comment ?? toApiError(error).message;
@@ -84,11 +90,32 @@ function close(): void {
           aria-describedby="reject-hint"
         >
           <div class="flex flex-col gap-1.5 px-6 pt-[22px]">
-            <h2 id="reject-title" class="text-[20px] font-semibold tracking-[-0.02em]">Reject request</h2>
-            <p id="reject-hint" class="text-[13px] text-ink-3">{{ target.user.name }} will see your comment.</p>
+            <h2 id="reject-title" class="text-[20px] font-semibold tracking-[-0.02em]">
+              {{ isGroup ? `Reject trip (${pendingPeople.length} pending)` : 'Reject request' }}
+            </h2>
+            <p v-if="isGroup" id="reject-hint" class="text-[13px] text-ink-3">
+              Everyone still pending on {{ organizerName }}'s trip will see your comment. Decided requests stay as they are.
+            </p>
+            <p v-else id="reject-hint" class="text-[13px] text-ink-3">{{ target.user.name }} will see your comment.</p>
           </div>
 
-          <div class="mx-6 mt-[18px] flex items-center gap-3 rounded-xl border border-line-divider bg-surface-subtle px-3.5 py-3">
+          <div
+            v-if="isGroup"
+            class="mx-6 mt-[18px] flex flex-col gap-2 rounded-xl border border-line-divider bg-surface-subtle px-3.5 py-3"
+          >
+            <span class="font-medium">{{ time.range(target) }}</span>
+            <ul class="flex flex-wrap gap-1.5" aria-label="People who will be rejected">
+              <li
+                v-for="person in pendingPeople"
+                :key="person.userId"
+                class="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface py-[2px] pl-1 pr-2 text-[12px]"
+              >
+                <UserAvatar :id="person.userId" :name="person.name" :size="18" />{{ person.name }}
+              </li>
+            </ul>
+          </div>
+
+          <div v-else class="mx-6 mt-[18px] flex items-center gap-3 rounded-xl border border-line-divider bg-surface-subtle px-3.5 py-3">
             <UserAvatar :id="target.user.id" :name="target.user.name" />
             <div class="flex min-w-0 flex-1 flex-col">
               <span class="font-medium">{{ time.range(target) }}</span>
@@ -122,7 +149,9 @@ function close(): void {
 
           <div class="flex justify-end gap-2.5 px-6 py-5">
             <AppButton :disabled="submitting" @click="close">Cancel</AppButton>
-            <AppButton variant="danger" :loading="submitting" @click="confirm">Reject request</AppButton>
+            <AppButton variant="danger" :loading="submitting" @click="confirm">
+              {{ isGroup ? `Reject ${pendingPeople.length} requests` : 'Reject request' }}
+            </AppButton>
           </div>
         </div>
       </div>

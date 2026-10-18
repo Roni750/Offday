@@ -17,7 +17,9 @@ import { useOfficeTime } from '@/composables/useOfficeTime';
 import { useMyRequestsStore } from '@/stores/myRequests';
 import { useReviewStore } from '@/stores/review';
 import { formatDays, periodsOverlap, toUtcIso } from '@/utils/dates';
-import { PAGE_SIZE, STATUS_TABS, type StatusTab, firstName, reasonText, tabToStatus } from '@/utils/requests';
+import { PAGE_SIZE, STATUS_TABS, type StatusTab, firstName, reasonText, tabToStatus, tripLabel, tripTooltip } from '@/utils/requests';
+import AppButton from '@/components/ui/AppButton.vue';
+import { useAuthStore } from '@/stores/auth';
 
 /** The queue opens on Pending; "All" is explicit in the URL. */
 const DEFAULT_TAB: StatusTab = 'Pending';
@@ -93,6 +95,8 @@ async function loadOverlaps(items: VacationRequest[]): Promise<void> {
     for (const request of pending) {
       const p = time.period(request);
       const names = approved
+        // Companions on the same trip are going together, not "off" on their own.
+        .filter(({ r }) => !(request.group && r.group?.id === request.group.id))
         .filter(({ r, p: other }) => r.user.id !== request.user.id && periodsOverlap(p.start, p.end, other.start, other.end))
         .map(({ r }) => r.user.name);
       if (names.length) map.set(request.id, [...new Set(names)]);
@@ -162,6 +166,31 @@ const columns: TableColumn[] = [
 function overlapText(names: string[]): string {
   return names.length === 1 ? `${firstName(names[0] ?? '')} is off` : `${names.length} others off`;
 }
+
+// ---- Trips: "Approve all" / "Reject all" (decisions.md #15) ----------------------
+
+const auth = useAuthStore();
+
+/**
+ * The trip actions show once per trip on the page, under its first row, when the reviewer may decide it
+ * (not on the trip) and someone on it is still pending. Per-person buttons stay on every row.
+ */
+const tripActions = computed(() => {
+  const shown = new Map<number, { rowId: number; pending: number }>();
+  for (const row of result.value?.items ?? []) {
+    const group = row.group;
+    if (!group || shown.has(group.id)) continue;
+    if (group.members.some((m) => m.userId === auth.me?.id)) continue;
+    const pending = group.members.filter((m) => m.status === 'Pending').length;
+    if (pending) shown.set(group.id, { rowId: row.id, pending });
+  }
+  return shown;
+});
+
+function tripActionFor(row: VacationRequest) {
+  const action = row.group ? tripActions.value.get(row.group.id) : undefined;
+  return action && action.rowId === row.id ? action : null;
+}
 </script>
 
 <template>
@@ -204,6 +233,14 @@ function overlapText(names: string[]): string {
           <div class="flex min-w-0 flex-col">
             <span class="whitespace-nowrap font-medium">{{ row.user.name }}</span>
             <span class="truncate text-[12px] text-muted">{{ row.user.email }}</span>
+            <span
+              v-if="row.group"
+              class="mt-1 inline-flex w-fit items-center gap-1 whitespace-nowrap rounded-full bg-accent-tint px-2 py-[2px] text-[11px] font-medium text-ink"
+              tabindex="0"
+              v-tooltip="tripTooltip(row)"
+            >
+              <span class="h-1.5 w-1.5 rounded-full bg-accent-mark" aria-hidden="true" />{{ tripLabel(row) }}
+            </span>
           </div>
         </div>
       </template>
@@ -245,6 +282,28 @@ function overlapText(names: string[]): string {
           class="ml-[42px] rounded-control bg-danger-tint px-3 py-2 text-[13px] leading-[1.45] text-ink-2"
         >
           {{ row.comments }}
+        </div>
+        <div
+          v-if="row.group && tripActionFor(row)"
+          class="ml-[42px] flex flex-wrap items-center justify-between gap-3 rounded-control border border-line-divider bg-surface-subtle px-3 py-2 text-[13px]"
+        >
+          <span class="text-ink-2">
+            <span class="font-medium text-ink">{{ tripLabel(row) }}</span>
+            · {{ tripActionFor(row)!.pending }} of {{ row.group.members.length }} still pending
+          </span>
+          <div class="flex gap-2">
+            <AppButton
+              size="xs"
+              variant="reject"
+              :disabled="review.busyGroups.has(row.group.id)"
+              @click="review.openReject(row, 'group')"
+            >
+              Reject all
+            </AppButton>
+            <AppButton size="xs" variant="primary" :loading="review.busyGroups.has(row.group.id)" @click="review.approveGroup(row)">
+              Approve all ({{ tripActionFor(row)!.pending }})
+            </AppButton>
+          </div>
         </div>
       </template>
     </DataTable>

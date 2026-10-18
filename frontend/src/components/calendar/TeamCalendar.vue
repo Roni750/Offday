@@ -5,7 +5,7 @@ import type { Holiday, UserSummary, VacationRequest } from '@/api/types';
 import UserAvatar from '@/components/ui/UserAvatar.vue';
 import { eachDay, formatDays, isWorkDay, todayIn, touchesDay } from '@/utils/dates';
 import { HOLIDAY_CALENDARS } from '@/utils/holidays';
-import { formatPeriod, zonedPeriod } from '@/utils/requests';
+import { formatPeriod, tripMates, withText, zonedPeriod } from '@/utils/requests';
 
 const props = defineProps<{
   /** First day of the month shown, in the office zone. */
@@ -32,6 +32,8 @@ interface Cell {
   roundStart: boolean;
   roundEnd: boolean;
   tip: string;
+  /** The first day of a trip's bar carries a small marker (vacation with colleagues). */
+  tripMark: boolean;
 }
 
 interface Row {
@@ -126,6 +128,13 @@ function columnShade(index: number, weekend: boolean, weekendClass: string): str
   return weekend ? weekendClass : '';
 }
 
+/** "Lina Haddad · 14–17 Dec · Pending · With Julia, Tom" */
+function barTip(user: UserSummary, request: VacationRequest): string {
+  const base = `${user.name} · ${formatPeriod(request, props.zone)} · ${request.status}`;
+  const mates = tripMates(request, user.id);
+  return mates.length ? `${base} · ${withText(mates, 4)}` : base;
+}
+
 const rows = computed<Row[]>(() => {
   const ordered = [...props.users].sort((a, b) => Number(b.id === props.meId) - Number(a.id === props.meId));
   return ordered.map((user) => {
@@ -152,7 +161,8 @@ const rows = computed<Row[]>(() => {
         status: hit ? (hit.request.status as 'Approved' | 'Pending') : null,
         roundStart: !!hit && prev !== hit,
         roundEnd: !!hit && next !== hit,
-        tip: hit ? `${user.name} · ${formatPeriod(hit.request, props.zone)} · ${hit.request.status}` : '',
+        tip: hit ? barTip(user, hit.request) : '',
+        tripMark: !!hit?.request.group && prev !== hit,
       };
     });
     return { user, isMe: user.id === props.meId, daysOff, cells };
@@ -204,6 +214,9 @@ function barStyle(cell: Cell): Record<string, string> {
       <div class="flex flex-wrap items-center gap-4 text-[12px] text-ink-2">
         <span class="flex items-center gap-1.5"><span class="h-2 w-3.5 rounded-[3px] bg-ink" />Approved</span>
         <span class="flex items-center gap-1.5"><span class="h-2 w-3.5 rounded-[3px] bg-hatch-pending" />Pending</span>
+        <span class="flex items-center gap-1.5">
+          <span class="h-2 w-2 rounded-full bg-accent-mark" />With colleagues
+        </span>
         <span class="font-mono text-muted">{{ formatDays(totalOff) }} approved days this month</span>
       </div>
     </div>
@@ -289,10 +302,16 @@ function barStyle(cell: Cell): Record<string, string> {
               <div
                 v-if="cell.status"
                 v-tooltip="cell.tip"
-                class="h-[22px] w-full"
+                class="relative h-[22px] w-full"
                 :class="cell.status === 'Approved' ? 'bg-ink' : 'bg-hatch-pending'"
                 :style="barStyle(cell)"
-              />
+              >
+                <span
+                  v-if="cell.tripMark"
+                  class="absolute left-[5px] top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-accent-mark ring-[1.5px] ring-white"
+                  aria-hidden="true"
+                />
+              </div>
             </div>
           </div>
         </div>
