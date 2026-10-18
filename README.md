@@ -1,5 +1,6 @@
 # Offday
 
+https://offday-vacay.netlify.app
 **Vacation requests without the email thread.** Employees submit time off, validators approve or reject it,
 and workspace admins run their offices' calendars, all scoped to a multi-tenant workspace.
 
