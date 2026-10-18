@@ -4,6 +4,7 @@ import { registerHandlerRefs } from "commoneventframework";
 
 import * as __cef_handlers_auth from "../handlers/auth";
 import * as __cef_handlers_health from "../handlers/health";
+import * as __cef_handlers_holidays from "../handlers/holidays";
 import * as __cef_handlers_office from "../handlers/office";
 import * as __cef_handlers_requests from "../handlers/requests";
 import * as __cef_handlers_review from "../handlers/review";
@@ -18,6 +19,8 @@ export class HandlerRegistry {
 			"handlers/auth#parseBalance": __cef_handlers_auth.parseBalance,
 			"handlers/auth#parseLogin": __cef_handlers_auth.parseLogin,
 			"handlers/health#getHealth": __cef_handlers_health.getHealth,
+			"handlers/holidays#listHolidays": __cef_handlers_holidays.listHolidays,
+			"handlers/holidays#parseHolidays": __cef_handlers_holidays.parseHolidays,
 			"handlers/office#changeRole": __cef_handlers_office.changeRole,
 			"handlers/office#getOffice": __cef_handlers_office.getOffice,
 			"handlers/office#getWorkspaceOffice": __cef_handlers_office.getWorkspaceOffice,

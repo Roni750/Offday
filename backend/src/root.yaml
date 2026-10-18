@@ -359,6 +359,21 @@ paths:
         "400": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
 
+  /holidays:
+    get:
+      tags: [Office]
+      x-inputParser: handlers/holidays#parseHolidays
+      x-handler: handlers/holidays#listHolidays
+      summary: Religious holidays in a date range, from Google's public holiday calendars (Validator, OfficeAdmin)
+      parameters:
+        - { in: query, name: from, required: true, schema: { type: string, format: date } }
+        - { in: query, name: to, required: true, schema: { type: string, format: date } }
+        - { in: query, name: calendars, schema: { type: string, example: "jewish,christian,muslim,hindu" } }
+      responses:
+        "200": { description: "{ calendars, holidays, unavailable }" }
+        "400": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+
   /office/work-week:
     put:
       tags: [Office]
