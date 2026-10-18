@@ -4,6 +4,7 @@ import { registerHandlerRefs } from "commoneventframework";
 
 import * as __cef_handlers_auth from "../handlers/auth";
 import * as __cef_handlers_health from "../handlers/health";
+import * as __cef_handlers_requests from "../handlers/requests";
 
 export class HandlerRegistry {
 	static register(): void {
@@ -15,6 +16,14 @@ export class HandlerRegistry {
 			"handlers/auth#parseBalance": __cef_handlers_auth.parseBalance,
 			"handlers/auth#parseLogin": __cef_handlers_auth.parseLogin,
 			"handlers/health#getHealth": __cef_handlers_health.getHealth,
+			"handlers/requests#createRequest": __cef_handlers_requests.createRequest,
+			"handlers/requests#listMine": __cef_handlers_requests.listMine,
+			"handlers/requests#parseCreate": __cef_handlers_requests.parseCreate,
+			"handlers/requests#parseListMine": __cef_handlers_requests.parseListMine,
+			"handlers/requests#parseUpdate": __cef_handlers_requests.parseUpdate,
+			"handlers/requests#parseWithdraw": __cef_handlers_requests.parseWithdraw,
+			"handlers/requests#updateRequest": __cef_handlers_requests.updateRequest,
+			"handlers/requests#withdrawRequest": __cef_handlers_requests.withdrawRequest,
 		});
 	}
 }
