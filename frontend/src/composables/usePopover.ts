@@ -31,7 +31,9 @@ export function usePopover(
     // Measure the natural height (scrollHeight ignores the max-height set last time).
     const cap = options.maxHeight ?? Infinity;
     const height = Math.min(popover.value?.scrollHeight ?? 0, cap);
-    const place = placePopover(rect, { width, height }, { width: window.innerWidth, height: window.innerHeight });
+    // The visible area without scrollbars (window.innerWidth includes them, so a menu could end under one).
+    const viewport = { width: document.documentElement.clientWidth, height: document.documentElement.clientHeight };
+    const place = placePopover(rect, { width, height }, viewport);
     style.value = {
       top: `${place.top}px`,
       left: `${place.left}px`,

@@ -9,6 +9,7 @@ import DecisionButtons from '@/components/requests/DecisionButtons.vue';
 import DataTable from '@/components/ui/DataTable.vue';
 import PaginationBar from '@/components/ui/PaginationBar.vue';
 import SegmentedTabs from '@/components/ui/SegmentedTabs.vue';
+import SelectMenu from '@/components/ui/SelectMenu.vue';
 import StatusPill from '@/components/ui/StatusPill.vue';
 import type { SegmentedOption, TableColumn } from '@/components/ui/types';
 import UserAvatar from '@/components/ui/UserAvatar.vue';
@@ -54,6 +55,11 @@ const activeTab = computed({
   get: () => status.value,
   set: (tab: StatusTab) => setQuery({ status: tab }),
 });
+
+const employeeOptions = computed(() => [
+  { value: '', label: 'All employees' },
+  ...users.value.map((user) => ({ value: String(user.id), label: user.name })),
+]);
 
 const selectedUser = computed({
   get: () => (userId.value === null ? '' : String(userId.value)),
@@ -166,14 +172,12 @@ function overlapText(names: string[]): string {
       <SegmentedTabs v-model="activeTab" :options="tabOptions" label="Filter by status" />
       <div class="flex flex-wrap items-center gap-2.5">
         <label for="employee-filter" class="text-[13px] text-ink-3">Employee</label>
-        <select
+        <SelectMenu
           id="employee-filter"
           v-model="selectedUser"
-          class="h-9 min-w-[190px] cursor-pointer rounded-control border border-line-input bg-surface px-2.5 text-[13px] text-ink outline-none focus:border-ink"
-        >
-          <option value="">All employees</option>
-          <option v-for="user in users" :key="user.id" :value="String(user.id)">{{ user.name }}</option>
-        </select>
+          :options="employeeOptions"
+          class="w-[210px]"
+        />
         <button
           v-if="hasFilters"
           type="button"

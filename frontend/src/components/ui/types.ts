@@ -19,3 +19,11 @@ export interface TableColumn {
   width: string;
   align?: 'left' | 'right';
 }
+
+export interface SelectOption {
+  value: string;
+  label: string;
+  /** Muted text on the right of the option, e.g. a count. */
+  hint?: string;
+  disabled?: boolean;
+}

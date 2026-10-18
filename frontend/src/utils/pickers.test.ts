@@ -159,6 +159,14 @@ describe('placePopover', () => {
     });
   });
 
+  it('lines up with the trigger’s right edge when it would run off the right side', () => {
+    // A 180px menu under a 160px button at the right of the page (the role column in Users & roles).
+    const right = { top: 100, bottom: 132, left: 1100, width: 160 };
+    const place = placePopover(right, { width: 180, height: 120 }, viewport);
+    expect(place.left).toBe(1100 + 160 - 180);
+    expect(place.left + place.width).toBeLessThanOrEqual(viewport.width - 8);
+  });
+
   it('flips above when it only fits there', () => {
     const low = { top: 600, bottom: 642, left: 100, width: 200 };
     const place = placePopover(low, { width: 304, height: 340 }, viewport);

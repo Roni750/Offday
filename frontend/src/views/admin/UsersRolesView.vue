@@ -6,7 +6,8 @@ import PageHeader from '@/components/layout/PageHeader.vue';
 import CardHeader from '@/components/ui/CardHeader.vue';
 import DataTable from '@/components/ui/DataTable.vue';
 import SegmentedTabs from '@/components/ui/SegmentedTabs.vue';
-import type { SegmentedOption, TableColumn } from '@/components/ui/types';
+import SelectMenu from '@/components/ui/SelectMenu.vue';
+import type { SegmentedOption, SelectOption, TableColumn } from '@/components/ui/types';
 import UserAvatar from '@/components/ui/UserAvatar.vue';
 import { useToast } from '@/composables/useToast';
 import { useMediaQuery } from '@/composables/useMediaQuery';
@@ -46,6 +47,8 @@ const filterOptions = computed<SegmentedOption<RoleFilter>[]>(() => [
   })),
 ]);
 
+const roleOptions: SelectOption[] = ALL_ROLES.map((role) => ({ value: role, label: roleLabel(role) }));
+
 const rows = computed(() => (filter.value === 'All' ? users.value : users.value.filter((u) => u.role === filter.value)));
 
 const columns = computed<TableColumn[]>(() => [
@@ -55,14 +58,9 @@ const columns = computed<TableColumn[]>(() => [
 ]);
 
 /** Picking a value only proposes the change; nothing is saved until it's confirmed. */
-async function changeRole(user: UserSummary, event: Event): Promise<void> {
-  const select = event.target as HTMLSelectElement;
-  const role = select.value as Role;
-  if (role === user.role) return;
-  if (savingId.value !== null) {
-    select.value = user.role;
-    return;
-  }
+/** Picking a role only proposes the change; the menu keeps showing the saved role until it's confirmed and saved. */
+async function changeRole(user: UserSummary, role: Role): Promise<void> {
+  if (role === user.role || savingId.value !== null) return;
 
   const toAdmin = role === 'WorkspaceAdmin';
   const confirmed = await confirm({
@@ -73,10 +71,7 @@ async function changeRole(user: UserSummary, event: Event): Promise<void> {
     confirmLabel: `Make ${roleLabel(role).toLowerCase()}`,
     tone: toAdmin ? 'danger' : 'primary',
   });
-  if (!confirmed) {
-    select.value = user.role;
-    return;
-  }
+  if (!confirmed) return;
 
   savingId.value = user.id;
   try {
@@ -84,8 +79,7 @@ async function changeRole(user: UserSummary, event: Event): Promise<void> {
     users.value = users.value.map((u) => (u.id === updated.id ? updated : u));
     toast.success('Role updated', `${updated.name} is now ${roleLabel(updated.role).toLowerCase()}.`);
   } catch {
-    // Toast already shown; put the select back to the saved role.
-    select.value = user.role;
+    // Toast already shown; the menu still shows the saved role.
   } finally {
     savingId.value = null;
   }
@@ -125,21 +119,17 @@ async function changeRole(user: UserSummary, event: Event): Promise<void> {
         </template>
         <template #cell-role="{ row }">
           <div class="flex items-center gap-2" v-tooltip="row.id === auth.me?.id ? 'You can’t change your own role' : null">
-            <span
-              v-if="savingId === row.id"
-              class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-muted border-r-transparent"
-              aria-hidden="true"
-            />
-            <select
-              :value="row.role"
+            <SelectMenu
+              :model-value="row.role"
+              :options="roleOptions"
+              :label="`Role for ${row.name}`"
+              size="sm"
+              class="w-[160px]"
+              :menu-width="180"
               :disabled="row.id === auth.me?.id"
-              :aria-busy="savingId === row.id"
-              :aria-label="`Role for ${row.name}`"
-              class="h-8 w-[150px] cursor-pointer rounded-lg border border-line-input bg-surface px-2 text-[13px] text-ink outline-none focus:border-ink disabled:cursor-not-allowed disabled:bg-surface-subtle disabled:text-muted"
-              @change="changeRole(row, $event)"
-            >
-              <option v-for="role in ALL_ROLES" :key="role" :value="role">{{ roleLabel(role) }}</option>
-            </select>
+              :busy="savingId === row.id"
+              @update:model-value="(role) => role && changeRole(row, role as Role)"
+            />
           </div>
         </template>
       </DataTable>

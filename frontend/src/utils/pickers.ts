@@ -175,7 +175,10 @@ export function placePopover(
   margin = 8,
 ): Placement {
   const width = Math.max(0, Math.min(size.width, viewport.width - margin * 2));
-  const left = Math.min(Math.max(trigger.left, margin), Math.max(margin, viewport.width - margin - width));
+  // Start at the trigger's left edge; if that runs off the right side, line up with its right edge instead
+  // (menus wider than their button, near the right of the page), then keep it inside the viewport.
+  const preferred = trigger.left + width > viewport.width - margin ? trigger.left + trigger.width - width : trigger.left;
+  const left = Math.min(Math.max(preferred, margin), Math.max(margin, viewport.width - margin - width));
   const spaceBelow = viewport.height - trigger.bottom - gap - margin;
   const spaceAbove = trigger.top - gap - margin;
   const above = size.height > spaceBelow && spaceAbove > spaceBelow;

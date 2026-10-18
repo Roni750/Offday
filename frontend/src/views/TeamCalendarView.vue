@@ -7,6 +7,7 @@ import { HOLIDAY_CALENDAR_IDS, type Holiday, type HolidayCalendarId, type TeamCa
 import TeamCalendar from '@/components/calendar/TeamCalendar.vue';
 import PageHeader from '@/components/layout/PageHeader.vue';
 import AppButton from '@/components/ui/AppButton.vue';
+import AppCheckbox from '@/components/ui/AppCheckbox.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useMyRequestsStore } from '@/stores/myRequests';
 import { useRequestDrawerStore } from '@/stores/requestDrawer';
@@ -97,20 +98,15 @@ const unavailableLabels = computed(() => unavailable.value.map((id) => HOLIDAY_C
   <fieldset class="card flex flex-wrap items-center gap-x-4 gap-y-2.5 px-5 py-3">
     <legend class="sr-only">Show religious holidays</legend>
     <span class="text-[13px] font-medium" aria-hidden="true">Show holidays</span>
-    <label
+    <AppCheckbox
       v-for="id in HOLIDAY_CALENDAR_IDS"
       :key="id"
-      class="flex cursor-pointer select-none items-center gap-2 text-[13px] text-ink-2 hover:text-ink"
+      :model-value="selectedCalendars.includes(id)"
+      @update:model-value="toggleCalendar(id)"
     >
-      <input
-        type="checkbox"
-        class="h-4 w-4 cursor-pointer accent-ink"
-        :checked="selectedCalendars.includes(id)"
-        @change="toggleCalendar(id)"
-      />
       <span class="h-2 w-2 rounded-full" :class="HOLIDAY_CALENDARS[id].dot" aria-hidden="true" />
       {{ HOLIDAY_CALENDARS[id].label }}
-    </label>
+    </AppCheckbox>
     <span v-if="loadingHolidays" class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-muted border-r-transparent" aria-label="Loading holidays" />
     <span class="ml-auto text-[12px] text-muted max-sm:ml-0">Source: Google Calendar's public holiday calendars</span>
   </fieldset>
