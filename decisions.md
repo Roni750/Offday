@@ -16,6 +16,7 @@ Each entry follows a short ADR format: **context → decision → alternatives �
 | 9 | Deployed to AWS Lambda, which CEF is built for; one handler for local and cloud | Infrastructure |
 | 10 | The API is the only path to the data | Security |
 | 11 | One error contract, including for errors raised by the database | API |
+| 12 | No self-registration: accounts belong to an office and are provisioned by an admin | Security / Product |
 
 ---
 
@@ -245,6 +246,36 @@ plus a unique index.
 - Unknown errors return a generic 500 and are logged server-side, so internals never leak.
 - Login failures return one generic message: no account enumeration.
 
+## 12. No self-registration: accounts belong to an office and are provisioned by an admin
+
+**Context.** The brief asks for a login endpoint, protected routes and role-based access, and states that seeded
+demo users are acceptable. The obvious extra would be a sign-up page. In a multi-tenant B2B tool (#7), open
+sign-up raises questions it can't answer safely: *which workspace and office* does a new user join, and *which
+role* do they get? A stranger must not be able to pick either.
+
+**Decision.** There is no public registration endpoint. Every account is created inside an office, with a role,
+by someone who already has authority over that workspace. For the demo, the seed creates these accounts.
+- Login is a real email + password flow: bcrypt-hashed passwords, a generic error on failure (#11) and a JWT
+  carrying identity only (#6). An unknown email is still compared against a dummy bcrypt hash, so response
+  timing doesn't reveal which emails have accounts.
+- The login screen also offers one-click demo cards, one per role. They call the **same** login endpoint with the
+  seeded credentials, so a reviewer can switch roles in one click without bypassing authentication.
+
+**Alternatives.**
+
+| Option | Verdict |
+|---|---|
+| Open sign-up, user picks the office | Anyone can join any company's tenant. Breaks isolation |
+| Open sign-up into a "pending" state, admin approves | Workable, but it's an invite flow with extra steps and a spam surface |
+| **Admin-provisioned accounts (invites)** | Matches how B2B tools onboard staff; tenancy and role are set by someone authorized |
+| SSO (Google Workspace, Okta via OIDC) | The long-term answer for companies; out of scope for the brief |
+
+**Consequences.** No account can enter a tenant without an authorized person placing it there, and no role can
+be self-assigned. The missing piece for production is the **invite flow**: a WorkspaceAdmin enters an email,
+office and role; the backend issues a single-use, expiring invite token (stored hashed); the invitee sets their
+own password. This fits the existing architecture as an `InviteUserCommand` and an `AcceptInviteCommand`, with a
+`UserInvitedEvent` delivered by the outbox (#5).
+
 ---
 
 ## Known limitations and next steps
@@ -253,6 +284,7 @@ plus a unique index.
 |---|---|
 | Notifications are a logging placeholder | Transactional outbox and a delivery worker (#5) |
 | Sign-out doesn't revoke the token (privilege changes already apply immediately) | `tokenVersion` on `users` |
+| Accounts exist only through the seed | Invite flow for WorkspaceAdmins, then SSO (#12) |
 | No login rate limiting | Throttling per IP and per account (API Gateway or a DB counter) |
 | No live updates for other users | WebSocket API or polling of a lightweight "revision" endpoint |
 | Offset pagination | Keyset pagination if the review queue grows large |
