@@ -568,9 +568,16 @@ describe("invitations", () => {
 				expect(p.status).toBe(404);
 				expect(p.text).toBe(JSON.stringify(INVALID_INVITE));
 				expect((await accept(res.body.token)).status).toBe(404);
+				// Admins see why the link stopped working.
+				const list = await api("GET", `/offices/${parisId}/invitations`, { token: noa });
+				const listed = list.body.find((i: { id: number }) => i.id === res.body.invitation.id);
+				expect(listed.status).toBe("CreatorLostAccess");
 			} finally {
 				await api("PUT", `/users/${hugoId}/role`, { token: noa, body: { role: "WorkspaceAdmin" } });
 			}
+			// Restoring the role restores the link.
+			const relisted = await api("GET", `/offices/${parisId}/invitations`, { token: noa });
+			expect(relisted.body.find((i: { id: number }) => i.id === res.body.invitation.id).status).toBe("Active");
 		});
 	});
 

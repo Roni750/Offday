@@ -172,7 +172,8 @@ export interface HolidaysResponse {
 
 /** Personal: one email, single use. Team: no email, several uses. */
 export type InvitationKind = 'personal' | 'team';
-export type InvitationStatus = 'Active' | 'Expired' | 'Revoked' | 'UsedUp';
+/** `CreatorLostAccess`: whoever made the link is no longer a workspace admin here, so it stopped working. */
+export type InvitationStatus = 'Active' | 'Expired' | 'Revoked' | 'UsedUp' | 'CreatorLostAccess';
 
 /** `GET /offices/:id/invitations`. Never contains the link itself. */
 export interface InvitationSummary {

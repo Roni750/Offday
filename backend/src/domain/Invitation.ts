@@ -20,7 +20,8 @@ export const INVITE_LIMITS = {
 } as const;
 
 export type InvitationKind = "personal" | "team";
-export type InvitationStatus = "Active" | "Expired" | "Revoked" | "UsedUp";
+/** `CreatorLostAccess`: the admin who made the link was deleted, demoted or moved to another workspace. */
+export type InvitationStatus = "Active" | "Expired" | "Revoked" | "UsedUp" | "CreatorLostAccess";
 
 /**
  * An invite link to one office. "Personal" links are tied to one email and single use; "team" links have no email
@@ -81,10 +82,18 @@ export class Invitation {
 /** A link tied to an email is personal; one without is a team link. */
 export const invitationKind = (invitation: Invitation): InvitationKind => (invitation.email ? "personal" : "team");
 
-/** Revoked wins over used up, which wins over expired. */
-export const invitationStatus = (invitation: Invitation, now = new Date()): InvitationStatus => {
+/**
+ * A link is only as good as the authority of whoever made it: it works while its creator is still a
+ * workspace admin of the link's workspace. Expects the creator's `office` relation to be loaded.
+ */
+export const creatorCanVouch = (creator: User | null | undefined, workspaceId: number): boolean =>
+	!!creator && creator.role === Role.WorkspaceAdmin && creator.office?.workspaceId === workspaceId;
+
+/** Revoked wins over used up, which wins over expired, which wins over the creator losing access. */
+export const invitationStatus = (invitation: Invitation, now = new Date(), creatorValid = true): InvitationStatus => {
 	if (invitation.revokedAt) return "Revoked";
 	if (invitation.useCount >= invitation.maxUses) return "UsedUp";
 	if (invitation.expiresAt <= now) return "Expired";
+	if (!creatorValid) return "CreatorLostAccess";
 	return "Active";
 };

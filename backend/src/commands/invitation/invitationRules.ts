@@ -1,7 +1,6 @@
 import { EntityManager, QueryFailedError } from "typeorm";
 import { EmailTakenError, ForbiddenError, NotFoundError } from "../../core/errors";
-import { Role } from "../../domain/enums";
-import { Invitation, invitationStatus } from "../../domain/Invitation";
+import { Invitation, creatorCanVouch, invitationStatus } from "../../domain/Invitation";
 import { Office } from "../../domain/Office";
 import { User } from "../../domain/User";
 
@@ -42,9 +41,7 @@ export const findUsableInvitation = async (em: EntityManager, tokenHash: Buffer,
 	const creator = invitation.createdById
 		? await em.findOne(User, { where: { id: invitation.createdById }, relations: { office: true } })
 		: null;
-	if (!office || !creator || creator.role !== Role.WorkspaceAdmin || creator.office.workspaceId !== office.workspaceId) {
-		throw invalidInvite();
-	}
+	if (!office || !creatorCanVouch(creator, office.workspaceId)) throw invalidInvite();
 	return { invitation, office };
 };
 
