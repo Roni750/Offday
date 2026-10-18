@@ -16,7 +16,7 @@ const busy = computed(() => review.busyIds.has(props.request.id));
 </script>
 
 <template>
-  <span v-if="isOwn" class="text-[12px] text-muted" title="You can't decide on your own requests">Your request</span>
+  <span v-if="isOwn" class="text-[12px] text-muted" tabindex="0" v-tooltip="'You can’t decide on your own requests'">Your request</span>
   <div v-else class="flex justify-end gap-2">
     <AppButton size="sm" variant="reject" :disabled="busy" @click="review.openReject(request)">Reject</AppButton>
     <AppButton size="sm" variant="primary" :loading="busy" @click="review.approve(request)">Approve</AppButton>

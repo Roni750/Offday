@@ -78,7 +78,7 @@ function signOut(): void {
 
     <nav class="flex flex-col gap-5 max-md:flex-row max-md:gap-1 max-md:overflow-x-auto" aria-label="Main">
       <div v-for="group in groups" :key="group.label" class="flex flex-col gap-0.5 max-md:flex-row">
-        <p class="eyebrow truncate px-2.5 pb-2 max-md:hidden" :title="group.label">{{ group.label }}</p>
+        <p class="eyebrow truncate px-2.5 pb-2 max-md:hidden" v-tooltip.truncated="group.label">{{ group.label }}</p>
         <RouterLink
           v-for="item in group.items"
           :key="item.to"
@@ -108,7 +108,7 @@ function signOut(): void {
         <UserAvatar :id="auth.me.id" :name="auth.me.name" :size="34" />
         <div class="flex min-w-0 flex-1 flex-col">
           <span class="truncate text-[13px] font-medium">{{ auth.me.name }}</span>
-          <span class="truncate text-[12px] text-muted" :title="auth.me.email">
+          <span class="truncate text-[12px] text-muted" v-tooltip.truncated="auth.me.email">
             {{ roleLabel(auth.me.role) }} · {{ auth.me.email }}
           </span>
         </div>

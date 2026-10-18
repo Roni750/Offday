@@ -119,12 +119,12 @@ async function changeRole(user: UserSummary, event: Event): Promise<void> {
           </div>
         </template>
         <template #cell-access="{ row }">
-          <span class="block truncate text-[13px] text-ink-3" :title="ROLE_DESCRIPTIONS[row.role]">
+          <span class="block truncate text-[13px] text-ink-3" v-tooltip.truncated="ROLE_DESCRIPTIONS[row.role]">
             {{ ROLE_DESCRIPTIONS[row.role] }}
           </span>
         </template>
         <template #cell-role="{ row }">
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2" v-tooltip="row.id === auth.me?.id ? 'You can’t change your own role' : null">
             <span
               v-if="savingId === row.id"
               class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-muted border-r-transparent"
@@ -135,7 +135,6 @@ async function changeRole(user: UserSummary, event: Event): Promise<void> {
               :disabled="row.id === auth.me?.id"
               :aria-busy="savingId === row.id"
               :aria-label="`Role for ${row.name}`"
-              :title="row.id === auth.me?.id ? `You can't change your own role` : undefined"
               class="h-8 w-[150px] cursor-pointer rounded-lg border border-line-input bg-surface px-2 text-[13px] text-ink outline-none focus:border-ink disabled:cursor-not-allowed disabled:bg-surface-subtle disabled:text-muted"
               @change="changeRole(row, $event)"
             >

@@ -249,7 +249,7 @@ function barStyle(cell: Cell): Record<string, string> {
                 class="mx-[2px] truncate rounded-[5px] px-1.5 text-[11px] font-medium leading-[20px]"
                 :class="[HOLIDAY_CALENDARS[span.calendar].chip, span.tentative ? 'italic' : '']"
                 :style="{ gridColumn: `${span.start + 1} / ${span.end + 2}`, gridRow: span.lane + 1 }"
-                :title="holidayTip(span)"
+                v-tooltip="holidayTip(span)"
               >
                 <span class="sr-only">{{ holidayTip(span) }}</span>
                 <span aria-hidden="true">{{ span.label }}</span>
@@ -288,7 +288,7 @@ function barStyle(cell: Cell): Record<string, string> {
             >
               <div
                 v-if="cell.status"
-                :title="cell.tip"
+                v-tooltip="cell.tip"
                 class="h-[22px] w-full"
                 :class="cell.status === 'Approved' ? 'bg-ink' : 'bg-hatch-pending'"
                 :style="barStyle(cell)"

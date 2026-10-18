@@ -205,11 +205,11 @@ function overlapText(names: string[]): string {
       </template>
       <template #cell-dates="{ row }">
         <div class="flex flex-col gap-[3px]">
-          <span class="font-medium" :title="time.times(row)">{{ time.range(row) }}</span>
+          <span class="font-medium" v-tooltip="time.times(row)">{{ time.range(row) }}</span>
           <span
             v-if="overlaps.get(row.id)"
             class="flex items-center gap-[5px] text-[12px] text-pending-warn"
-            :title="overlaps.get(row.id)?.join(', ')"
+            v-tooltip="overlaps.get(row.id)?.join(', ')"
           >
             <span class="h-1.5 w-1.5 rounded-full bg-pending-dot" />{{ overlapText(overlaps.get(row.id) ?? []) }}
           </span>
@@ -219,7 +219,7 @@ function overlapText(names: string[]): string {
         <span class="font-mono">{{ formatDays(row.days) }}d</span>
       </template>
       <template #cell-reason="{ row }">
-        <span class="block truncate" :class="row.reason ? 'text-ink' : 'text-faint'" :title="row.reason ?? ''">
+        <span class="block truncate" :class="row.reason ? 'text-ink' : 'text-faint'" v-tooltip.truncated="row.reason">
           {{ reasonText(row) }}
         </span>
       </template>
@@ -231,7 +231,7 @@ function overlapText(names: string[]): string {
       </template>
       <template #cell-decision="{ row }">
         <DecisionButtons v-if="row.status === 'Pending'" :request="row" />
-        <span v-else-if="row.decidedAt" class="font-mono text-[12px] text-muted" :title="row.decidedBy?.name">
+        <span v-else-if="row.decidedAt" class="font-mono text-[12px] text-muted" v-tooltip="row.decidedBy ? `Decided by ${row.decidedBy.name}` : null">
           on {{ time.day(row.decidedAt) }}
         </span>
       </template>

@@ -122,7 +122,7 @@ function onMenu(user: UserSummary, event: Event): void {
             dragging?.id === user.id ? 'opacity-40' : '',
             savingId === user.id ? 'opacity-60' : '',
           ]"
-          :title="user.id === meId ? `You can't change your own role` : 'Drag to another group to change the role'"
+          v-tooltip="user.id === meId ? `You can't change your own role` : 'Drag to another group to change the role'"
           @dragstart="onDragStart($event, user)"
           @dragend="onDragEnd"
         >

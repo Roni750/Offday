@@ -184,7 +184,7 @@ function resubmit(request: VacationRequest): void {
           <span class="font-mono">{{ formatDays(row.days) }}d</span>
         </template>
         <template #cell-reason="{ row }">
-          <span class="block truncate" :class="row.reason ? 'text-ink' : 'text-faint'" :title="row.reason ?? ''">
+          <span class="block truncate" :class="row.reason ? 'text-ink' : 'text-faint'" v-tooltip.truncated="row.reason">
             {{ reasonText(row) }}
           </span>
         </template>
@@ -202,7 +202,8 @@ function resubmit(request: VacationRequest): void {
           <span
             v-else-if="row.status === 'Approved'"
             class="flex items-center gap-1.5 text-[12px] text-muted"
-            title="Approved requests can't be modified"
+            tabindex="0"
+            v-tooltip="'Approved requests can’t be modified'"
           >
             <span class="h-2 w-2 rounded-[2px] border-[1.5px] border-muted" />Locked
           </span>
