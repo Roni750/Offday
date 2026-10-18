@@ -1,6 +1,6 @@
 # Typechecks, tests and builds every push and pull request.
-# On main, when something that runs on the Lambda changed, it then calls the "Deploy API" workflow,
-# so the API is only ever deployed from a commit whose checks passed. The frontend is built and published by Netlify.
+# On main it then calls the "Deploy" workflow with the parts that changed (API, web app or both),
+# so production only ever receives a commit whose checks passed.
 name: Checks
 
 on:
@@ -23,6 +23,7 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
       api: ${{ steps.filter.outputs.api }}
+      web: ${{ steps.filter.outputs.web }}
     steps:
       - uses: actions/checkout@v5
       - id: filter
@@ -43,7 +44,10 @@ jobs:
               - 'backend/tsconfig.json'
               - 'backend/scripts/deploy.mjs'
               - 'backend/certs/**'
-              - '.github/workflows/deploy-api.yml'
+              - '.github/workflows/deploy.yml'
+            web:
+              - 'frontend/**'
+              - '.github/workflows/deploy.yml'
 
   backend:
     name: Backend (typecheck, unit, e2e)
@@ -105,17 +109,20 @@ jobs:
       # `build` runs vue-tsc first, so it also typechecks.
       - run: npm run build
 
-  deploy-api:
-    name: Deploy API
+  deploy:
+    name: Deploy
     needs: [changes, backend, frontend]
-    # Skipped jobs (e.g. frontend when only the backend changed) don't block; failed ones do.
+    # Skipped checks (e.g. frontend when only the backend changed) don't block; failed ones do.
     if: >-
       always() && !cancelled()
       && github.event_name == 'push' && github.ref == 'refs/heads/main'
-      && needs.changes.outputs.api == 'true'
-      && needs.backend.result == 'success'
+      && (needs.changes.outputs.api == 'true' || needs.changes.outputs.web == 'true')
+      && (needs.backend.result == 'success' || needs.backend.result == 'skipped')
       && (needs.frontend.result == 'success' || needs.frontend.result == 'skipped')
-    uses: ./.github/workflows/deploy-api.yml
+    uses: ./.github/workflows/deploy.yml
+    with:
+      api: ${{ needs.changes.outputs.api == 'true' }}
+      web: ${{ needs.changes.outputs.web == 'true' }}
     secrets: inherit
     permissions:
       contents: read

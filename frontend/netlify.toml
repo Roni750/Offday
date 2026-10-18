@@ -1,0 +1,5 @@
+# Production is published by GitHub Actions (.github/workflows/deploy.yml), after the API it depends on.
+# Netlify skips its own production builds (an "ignore" command exiting 0 means "skip") but still builds
+# deploy previews for pull requests and branches.
+[build]
+  ignore = "[ \"$CONTEXT\" = \"production\" ]"

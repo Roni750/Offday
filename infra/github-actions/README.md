@@ -1,6 +1,6 @@
 # GitHub Actions → AWS
 
-`.github/workflows/deploy-api.yml` (called by `checks.yml` after a green run on `main`) deploys the Lambda by assuming the IAM role `vacation-manager-github-deploy`
+`.github/workflows/deploy.yml` (called by `checks.yml` after a green run on `main`) deploys the Lambda by assuming the IAM role `vacation-manager-github-deploy`
 through GitHub's OIDC provider: each run gets short-lived credentials, and no AWS keys are stored in GitHub.
 
 - `trust-policy.json`: only jobs of `Roni750/Offday` running in the `production` environment can assume the role.
