@@ -22,6 +22,10 @@ export class Office {
 	@Column({ type: "varchar", length: 64 })
 	timezone!: string;
 
+	/** ISO weekdays the office works (1 = Monday ... 7 = Sunday), e.g. Sun–Thu in Tel Aviv. */
+	@Column({ type: "smallint", array: true, name: "work_days", default: () => "'{1,2,3,4,5}'" })
+	workDays!: number[];
+
 	@CreateDateColumn({ type: "timestamptz", name: "created_at" })
 	createdAt!: Date;
 
