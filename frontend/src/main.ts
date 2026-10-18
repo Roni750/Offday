@@ -4,6 +4,7 @@ import { Settings } from 'luxon';
 import App from './App.vue';
 import { errorTitle } from './api/errors';
 import { installInterceptors } from './api/http';
+import { vTooltip } from './directives/tooltip';
 import { router } from './router';
 import { useAuthStore } from './stores/auth';
 import { useMyRequestsStore } from './stores/myRequests';
@@ -19,6 +20,7 @@ Settings.defaultLocale = 'en-US';
 const app = createApp(App);
 const pinia = createPinia();
 app.use(pinia);
+app.directive('tooltip', vTooltip);
 
 const auth = useAuthStore(pinia);
 const toasts = useToastStore(pinia);
