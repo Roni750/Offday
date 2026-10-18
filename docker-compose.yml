@@ -1,0 +1,18 @@
+# Local PostgreSQL for development. Usage: docker compose up -d
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: offday
+      POSTGRES_PASSWORD: offday
+      POSTGRES_DB: offday
+    ports:
+      - "5433:5432"
+    volumes:
+      - offday-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U offday"]
+      interval: 2s
+      retries: 15
+volumes:
+  offday-db:
