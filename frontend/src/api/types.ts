@@ -168,6 +168,61 @@ export interface HolidaysResponse {
   unavailable: HolidayCalendarId[];
 }
 
+// ---- Invitations -------------------------------------------------------------
+
+/** Personal: one email, single use. Team: no email, several uses. */
+export type InvitationKind = 'personal' | 'team';
+export type InvitationStatus = 'Active' | 'Expired' | 'Revoked' | 'UsedUp';
+
+/** `GET /offices/:id/invitations`. Never contains the link itself. */
+export interface InvitationSummary {
+  id: number;
+  kind: InvitationKind;
+  label: string | null;
+  role: Role;
+  /** Personal links only. */
+  email: string | null;
+  maxUses: number;
+  useCount: number;
+  expiresAt: string;
+  revokedAt: string | null;
+  createdBy: { id: number; name: string } | null;
+  createdAt: string;
+  status: InvitationStatus;
+}
+
+/** Body of `POST /offices/:id/invitations`. */
+export interface CreateInvitationPayload {
+  kind: InvitationKind;
+  role: Role;
+  email?: string;
+  maxUses?: number;
+  expiresInDays: number;
+  label?: string;
+}
+
+export interface CreatedInvitation {
+  invitation: InvitationSummary;
+  /** Shown once: the server keeps only a hash of it. */
+  token: string;
+}
+
+/** `POST /invitations/preview`: names only, no ids. */
+export interface InvitationPreview {
+  workspace: { name: string };
+  office: { name: string };
+  role: Role;
+  /** Set when the link is for one email address. */
+  email: string | null;
+  expiresAt: string;
+}
+
+export interface AcceptInvitationForm {
+  name: string;
+  email: string;
+  password: string;
+}
+
 // ---- Errors -----------------------------------------------------------------
 
 export type ApiErrorCode =
@@ -177,6 +232,7 @@ export type ApiErrorCode =
   | 'NOT_FOUND'
   | 'OVERLAP'
   | 'INVALID_STATE'
+  | 'EMAIL_TAKEN'
   | 'INTERNAL';
 
 export interface OverlapConflict {

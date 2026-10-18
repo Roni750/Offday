@@ -52,6 +52,7 @@ const TITLES: Record<string, string> = {
   NOT_FOUND: 'Not found',
   OVERLAP: 'These dates overlap another request',
   INVALID_STATE: "That can't be changed anymore",
+  EMAIL_TAKEN: 'That email already has an account',
   INTERNAL: 'Something went wrong on our side',
   NETWORK: 'Connection problem',
 };

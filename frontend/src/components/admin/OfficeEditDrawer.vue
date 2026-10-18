@@ -3,6 +3,7 @@ import { computed, onUnmounted, ref, watch } from 'vue';
 import { DateTime } from 'luxon';
 import * as officeApi from '@/api/office';
 import type { OfficeDetails, Role, UserSummary } from '@/api/types';
+import OfficeInvitations from '@/components/admin/OfficeInvitations.vue';
 import RoleBoard from '@/components/admin/RoleBoard.vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import SearchSelect from '@/components/ui/SearchSelect.vue';
@@ -302,6 +303,9 @@ async function moveUser(user: UserSummary, role: Role): Promise<void> {
                 @move="moveUser"
               />
             </section>
+
+            <OfficeInvitations v-if="office" :key="office.id" :office="office" />
+            <div v-else class="h-24 animate-pulse rounded-control bg-canvas" />
           </div>
         </div>
       </div>

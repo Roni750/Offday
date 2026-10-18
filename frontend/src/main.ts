@@ -33,7 +33,9 @@ installInterceptors({
     if (wasSignedIn) {
       toasts.push({ kind: 'info', title: 'Session expired', body: 'Please sign in again.' });
     }
-    if (router.currentRoute.value.name !== 'login') {
+    // The join page works signed out, and its URL holds an invite token that mustn't travel into `?redirect=`.
+    const current = router.currentRoute.value.name;
+    if (current !== 'login' && current !== 'join') {
       void router.push({ name: 'login', query: { redirect: router.currentRoute.value.fullPath } });
     }
   },

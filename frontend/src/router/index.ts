@@ -69,6 +69,13 @@ const routes: RouteRecordRaw[] = [
       },
     ],
   },
+  {
+    // The invite token lives only in this page URL; the page sends it to the API in a request body.
+    path: '/join/:token',
+    name: 'join',
+    component: () => import('@/views/JoinView.vue'),
+    meta: { public: true, title: 'Join Offday' },
+  },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ];
 
