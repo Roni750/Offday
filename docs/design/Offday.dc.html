@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet"><style>body{margin:0;background:#F3F2EE}*{box-sizing:border-box}a{color:#17171A}a:hover{color:#55555C}input,select,textarea,button{font-family:inherit}input[type=date]::-webkit-calendar-picker-indicator{opacity:.5;cursor:pointer}</style></helmet>
+<div style="font-family:'Geist',system-ui,sans-serif;min-height:100vh;background:#F3F2EE;color:#17171A;font-size:14px;-webkit-font-smoothing:antialiased">
+
+<sc-if value="{{ signedOut }}" hint-placeholder-val="{{ true }}">
+<div data-screen-label="Login" style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px">
+  <div style="width:100%;max-width:1040px;display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));background:#FFFFFF;border:1px solid #E7E5DF;border-radius:20px;overflow:hidden;box-shadow:0 1px 2px rgba(23,23,26,.04),0 12px 40px rgba(23,23,26,.06)">
+    <form onSubmit="{{ signIn }}" style="padding:48px 48px 40px;display:flex;flex-direction:column;gap:28px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:28px;height:28px;border-radius:8px;background:#17171A;display:flex;align-items:center;justify-content:center"><div style="width:10px;height:10px;border-radius:3px;background:oklch(0.91 0.17 122)"></div></div>
+        <div style="font-weight:600;font-size:16px;letter-spacing:-0.01em">Offday</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <h1 style="margin:0;font-size:30px;font-weight:600;letter-spacing:-0.03em">Sign in</h1>
+        <p style="margin:0;color:#6B6B72;font-size:14px">Use your work account, or pick a demo profile below.</p>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500">Email
+          <input value="{{ email }}" onChange="{{ setEmail }}" type="email" placeholder="name@acme.io" style="height:42px;border:1px solid #E1DFD8;border-radius:10px;padding:0 12px;font-size:14px;background:#FBFAF8;outline:none;color:#17171A" style-focus="border-color:#17171A;background:#FFFFFF"></input>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500">Password
+          <input value="{{ password }}" onChange="{{ setPassword }}" type="password" placeholder="••••••••" style="height:42px;border:1px solid #E1DFD8;border-radius:10px;padding:0 12px;font-size:14px;background:#FBFAF8;outline:none;color:#17171A" style-focus="border-color:#17171A;background:#FFFFFF"></input>
+        </label>
+        <sc-if value="{{ hasLoginError }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:oklch(0.5 0.15 25)">{{ loginError }}</div></sc-if>
+        <button type="submit" style="height:44px;border:0;border-radius:10px;background:#17171A;color:#FFFFFF;font-size:14px;font-weight:500;cursor:pointer;margin-top:4px" style-hover="background:#2A2A30">Sign in</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;padding-top:20px;border-top:1px solid #EEECE6">
+        <div style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#8A8A90">Demo accounts · click to sign in</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <sc-for list="{{ demoUsers }}" as="d" hint-placeholder-count="2">
+            <button type="button" onClick="{{ d.pick }}" style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid #E7E5DF;border-radius:12px;background:#FFFFFF;cursor:pointer;text-align:left" style-hover="border-color:#17171A">
+              <div style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;background:{{ d.avBg }};color:{{ d.avFg }}">{{ d.initials }}</div>
+              <div style="display:flex;flex-direction:column;min-width:0"><span style="font-size:13px;font-weight:500;color:#17171A">{{ d.name }}</span><span style="font-size:12px;color:#8A8A90">{{ d.role }}</span></div>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+    </form>
+    <div style="background:#17171A;color:#FFFFFF;padding:48px;display:flex;flex-direction:column;justify-content:space-between;gap:40px">
+      <div style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#8E8E96">Acme · Product team</div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="font-size:34px;line-height:1.1;font-weight:600;letter-spacing:-0.03em;text-wrap:pretty">Time off, without the email thread.</div>
+        <div style="font-size:14px;color:#A6A6AE;line-height:1.5;max-width:340px">Request leave, see who's out, and get a decision — all in one place.</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <sc-for list="{{ loginPreview }}" as="p" hint-placeholder-count="3">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-radius:12px;background:#222227;border:1px solid #2E2E34">
+            <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:500">{{ p.name }}</span><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#8E8E96">{{ p.range }}</span></div>
+            <span style="display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:500;background:{{ p.sBg }};color:{{ p.sFg }}"><span style="width:6px;height:6px;border-radius:50%;background:{{ p.sDot }}"></span>{{ p.status }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{ signedIn }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;min-height:100vh">
+  <aside style="width:236px;flex-shrink:0;padding:20px 14px;display:flex;flex-direction:column;gap:28px;position:sticky;top:0;height:100vh;border-right:1px solid #E7E5DF">
+    <div style="display:flex;align-items:center;gap:10px;padding:4px 8px">
+      <div style="width:28px;height:28px;border-radius:8px;background:#17171A;display:flex;align-items:center;justify-content:center"><div style="width:10px;height:10px;border-radius:3px;background:oklch(0.91 0.17 122)"></div></div>
+      <div style="font-weight:600;font-size:16px;letter-spacing:-0.01em">Offday</div>
+    </div>
+    <nav style="display:flex;flex-direction:column;gap:2px">
+      <div style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#8A8A90;padding:0 10px 8px">{{ roleLabel }} workspace</div>
+      <sc-for list="{{ nav }}" as="n" hint-placeholder-count="3">
+        <button onClick="{{ n.go }}" style="display:flex;align-items:center;gap:10px;height:38px;padding:0 10px;border:1px solid {{ n.border }};border-radius:10px;background:{{ n.bg }};color:{{ n.fg }};font-size:14px;font-weight:500;cursor:pointer;text-align:left;box-shadow:{{ n.shadow }}">
+          <span style="width:6px;height:6px;border-radius:2px;background:{{ n.mark }}"></span>
+          <span style="flex:1">{{ n.label }}</span>
+          <sc-if value="{{ n.hasBadge }}" hint-placeholder-val="{{ false }}"><span style="font-family:'Geist Mono',monospace;font-size:11px;padding:2px 7px;border-radius:999px;background:#17171A;color:#FFFFFF">{{ n.badge }}</span></sc-if>
+        </button>
+      </sc-for>
+    </nav>
+    <div style="margin-top:auto;display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:12px;background:#FFFFFF;border:1px solid #E7E5DF">
+        <div style="width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;background:{{ me.avBg }};color:{{ me.avFg }}">{{ me.initials }}</div>
+        <div style="display:flex;flex-direction:column;min-width:0;flex:1"><span style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ me.name }}</span><span style="font-size:12px;color:#8A8A90;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ me.email }}</span></div>
+      </div>
+      <button onClick="{{ signOut }}" style="height:36px;border:1px solid #E1DFD8;border-radius:10px;background:transparent;color:#55555C;font-size:13px;font-weight:500;cursor:pointer" style-hover="background:#FFFFFF;color:#17171A">Sign out</button>
+    </div>
+  </aside>
+
+  <main style="flex:1;min-width:0;padding:24px 32px 48px;display:flex;flex-direction:column;gap:22px">
+    <header style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap">
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="font-family:'Geist Mono',monospace;font-size:12px;color:#8A8A90">{{ todayLabel }}</div>
+        <h1 style="margin:0;font-size:28px;font-weight:600;letter-spacing:-0.03em">{{ title }}</h1>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <sc-if value="{{ isRequester }}" hint-placeholder-val="{{ false }}">
+          <button onClick="{{ openDrawer }}" style="height:40px;padding:0 16px;border:0;border-radius:10px;background:#17171A;color:#FFFFFF;font-size:14px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:8px" style-hover="background:#2A2A30"><span style="font-size:18px;line-height:1;margin-top:-2px">+</span>New request</button>
+        </sc-if>
+        <sc-if value="{{ showReviewCta }}" hint-placeholder-val="{{ false }}">
+          <button onClick="{{ goReview }}" style="height:40px;padding:0 16px;border:0;border-radius:10px;background:#17171A;color:#FFFFFF;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#2A2A30">Review {{ pendingCount }} pending</button>
+        </sc-if>
+      </div>
+    </header>
+
+    <!-- REQUESTER: MY REQUESTS -->
+    <sc-if value="{{ onMine }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="My requests" style="display:flex;flex-direction:column;gap:18px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px">
+        <div style="background:oklch(0.91 0.17 122);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:13px;font-weight:500">Leave balance · 2026</span><span style="font-family:'Geist Mono',monospace;font-size:12px">{{ bal.allowance }} days</span></div>
+          <div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:48px;font-weight:600;letter-spacing:-0.04em;line-height:1">{{ bal.left }}</span><span style="font-size:14px">days left</span></div>
+          <div style="display:flex;height:8px;border-radius:999px;overflow:hidden;background:rgba(23,23,26,.12)">
+            <div style="width:{{ bal.usedPct }};background:#17171A"></div>
+            <div style="width:{{ bal.pendingPct }};background:repeating-linear-gradient(135deg,#17171A 0 3px,transparent 3px 6px)"></div>
+          </div>
+          <div style="display:flex;gap:16px;font-size:12px"><span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:2px;background:#17171A"></span>{{ bal.used }} used</span><span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:2px;border:1.5px solid #17171A"></span>{{ bal.pending }} pending</span></div>
+        </div>
+        <div style="background:#FFFFFF;border:1px solid #E7E5DF;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:12px">
+          <span style="font-size:13px;font-weight:500;color:#55555C">Next time off</span>
+          <sc-if value="{{ next.has }}" hint-placeholder-val="{{ true }}">
+            <div style="font-size:28px;font-weight:600;letter-spacing:-0.03em">{{ next.range }}</div>
+            <div style="font-size:13px;color:#6B6B72">{{ next.days }} working days · {{ next.when }}</div>
+            <div style="margin-top:auto"><span style="display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:500;background:{{ next.sBg }};color:{{ next.sFg }}"><span style="width:6px;height:6px;border-radius:50%;background:{{ next.sDot }}"></span>{{ next.status }}</span></div>
+          </sc-if>
+          <sc-if value="{{ next.none }}" hint-placeholder-val="{{ false }}"><div style="font-size:14px;color:#6B6B72">Nothing planned yet.</div></sc-if>
+        </div>
+        <div style="background:#FFFFFF;border:1px solid #E7E5DF;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:12px">
+          <span style="font-size:13px;font-weight:500;color:#55555C">Awaiting decision</span>
+          <div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:28px;font-weight:600;letter-spacing:-0.03em">{{ myPending.count }}</span><span style="font-size:13px;color:#6B6B72">{{ myPending.label }}</span></div>
+          <div style="font-size:13px;color:#6B6B72">{{ myPending.days }} working days requested · reviewed by Omar Benali</div>
+        </div>
+      </div>
+
+      <div style="background:#FFFFFF;border:1px solid #E7E5DF;border-radius:16px;overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;flex-wrap:wrap;border-bottom:1px solid #EEECE6">
+          <div style="font-size:16px;font-weight:600;letter-spacing:-0.01em">My requests</div>
+          <div style="display:flex;gap:2px;padding:3px;background:#F3F2EE;border-radius:10px">
+            <sc-for list="{{ myTabs }}" as="t" hint-placeholder-count="4">
+              <button onClick="{{ t.go }}" style="height:30px;padding:0 12px;border:0;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:6px;background:{{ t.bg }};color:{{ t.fg }};box-shadow:{{ t.shadow }}">{{ t.label }}<span style="font-family:'Geist Mono',monospace;font-size:11px;color:#8A8A90">{{ t.count }}</span></button>
+            </sc-for>
+          </div>
+        </div>
+        <div style="overflow-x:auto"><div style="min-width:820px"><div style="display:grid;grid-template-columns:minmax(150px,1.3fr) 70px minmax(120px,2fr) 100px 112px 120px;gap:16px;padding:10px 20px;font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:#8A8A90;background:#FBFAF8;border-bottom:1px solid #EEECE6">
+          <span>Dates</span><span>Days</span><span>Reason</span><span>Submitted</span><span>Status</span><span style="text-align:right">Action</span>
+        </div>
+        <sc-for list="{{ myRows }}" as="r" hint-placeholder-count="4">
+          <div style="border-bottom:1px solid #EEECE6;padding:14px 20px;display:flex;flex-direction:column;gap:10px" style-hover="background:#FCFBF9">
+            <div style="display:grid;grid-template-columns:minmax(150px,1.3fr) 70px minmax(120px,2fr) 100px 112px 120px;gap:16px;align-items:center">
+              <div style="display:flex;flex-direction:column;gap:2px"><span style="font-weight:500">{{ r.range }}</span><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#8A8A90">{{ r.weekdays }}</span></div>
+              <span style="font-family:'Geist Mono',monospace">{{ r.days }}d</span>
+              <span style="color:{{ r.reasonColor }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.reason }}</span>
+              <span style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B72">{{ r.submitted }}</span>
+              <span><span style="display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:500;background:{{ r.sBg }};color:{{ r.sFg }}"><span style="width:6px;height:6px;border-radius:50%;background:{{ r.sDot }}"></span>{{ r.status }}</span></span>
+              <div style="display:flex;justify-content:flex-end">
+                <sc-if value="{{ r.canWithdraw }}" hint-placeholder-val="{{ false }}"><button onClick="{{ r.withdraw }}" style="height:30px;padding:0 12px;border:1px solid #E1DFD8;border-radius:8px;background:#FFFFFF;font-size:12px;font-weight:500;cursor:pointer;color:#17171A" style-hover="border-color:#17171A">Withdraw</button></sc-if>
+                <sc-if value="{{ r.locked }}" hint-placeholder-val="{{ false }}"><span title="Approved requests can't be modified" style="font-size:12px;color:#8A8A90;display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border:1.5px solid #8A8A90;border-radius:2px"></span>Locked</span></sc-if>
+                <sc-if value="{{ r.isRejected }}" hint-placeholder-val="{{ false }}"><button onClick="{{ r.resubmit }}" style="height:30px;padding:0 12px;border:1px solid #E1DFD8;border-radius:8px;background:#FFFFFF;font-size:12px;font-weight:500;cursor:pointer;color:#17171A" style-hover="border-color:#17171A">New dates</button></sc-if>
+              </div>
+            </div>
+            <sc-if value="{{ r.hasComment }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;gap:10px;padding:10px 12px;border-radius:10px;background:oklch(0.975 0.015 25);font-size:13px;line-height:1.45">
+                <span style="font-weight:600;flex-shrink:0">Omar B.</span><span style="color:#55555C">{{ r.comment }}</span>
+              </div>
+            </sc-if>
+          </div>
+        </sc-for>
+        <sc-if value="{{ myEmpty }}" hint-placeholder-val="{{ false }}"><div style="padding:40px 20px;text-align:center;color:#8A8A90">No requests in this view.</div></sc-if></div></div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- VALIDATOR: OVERVIEW -->
+    <sc-if value="{{ onOverview }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="Overview" style="display:flex;flex-direction:column;gap:18px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px">
+        <div style="background:oklch(0.91 0.17 122);border-radius:16px;padding:18px 20px;display:flex;flex-direction:column;gap:10px">
+          <span style="font-size:13px;font-weight:500">Awaiting review</span>
+          <span style="font-size:40px;font-weight:600;letter-spacing:-0.04em;line-height:1">{{ kpi.pending }}</span>
+          <span style="font-size:12px">Oldest submitted {{ kpi.oldest }}</span>
+        </div>
+        <div style="background:#FFFFFF;border:1px solid #E7E5DF;border-radius:16px;padding:18px 20px;display:flex;flex-direction:column;gap:10px">
+          <span style="font-size:13px;font-weight:500;color:#55555C">Approval rate</span>
+          <span style="font-size:40px;font-weight:600;letter-spacing:-0.04em;line-height:1">{{ kpi.rate }}</span>
+          <span style="font-size:12px;color:#6B6B72">{{ kpi.decided }} decisions this year</span>
+        </div>
+        <div style="background:#FFFFFF;border:1px solid #E7E5DF;border-radius:16px;padding:18px 20px;display:flex;flex-direction:column;gap:10px">
+          <span style="font-size:13px;font-weight:500;color:#55555C">Approved days · 2026</span>
+          <span style="font-size:40px;font-weight:600;letter-spacing:-0.04em;line-height:1">{{ kpi.approvedDays }}</span>
+          <span style="font-size:12px;color:#6B6B72">Across {{ kpi.people }} team members</span>
+        </div>
+        <div style="background:#FFFFFF;border:1px solid #E7E5DF;border-radius:16px;padding:18px 20px;display:flex;flex-direction:column;gap:10px">
+          <span style="font-size:13px;font-weight:500;color:#55555C">Out in next 14 days</span>
+          <span style="font-size:40px;font-weight:600;letter-spacing:-0.04em;line-height:1">{{ kpi.outSoon }}</span>
+          <span style="font-size:12px;color:#6B6B72">of {{ kpi.team }} people</span>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-wrap:wrap;gap:14px">
+        <div style="flex:2 1 420px;min-width:0;background:#FFFFFF;border:1px solid #E7E5DF;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:20px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+            <div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:16px;font-weight:600;letter-spacing:-0.01em">Requested days by month</span><span style="font-size:13px;color:#6B6B72">Working days, grouped by start date</span></div>
+            <div style="display:flex;gap:14px;font-size:12px;color:#55555C">
+              <sc-for list="{{ legend }}" as="l" hint-placeholder-count="3"><span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:2px;background:{{ l.color }}"></span>{{ l.label }}</span></sc-for>
+            </div>
+          </div>
+          <div style="display:flex;gap:14px;height:220px;align-items:stretch">
+            <sc-for list="{{ chart }}" as="m" hint-placeholder-count="6">
+              <div style="flex:1;display:flex;flex-direction:column;gap:8px;min-width:0">
+                <div style="font-family:'Geist Mono',monospace;font-size:12px;color:#55555C;text-align:center">{{ m.total }}</div>
+                <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;background:{{ m.track }};border-radius:8px;overflow:hidden">
+                  <sc-for list="{{ m.segs }}" as="s" hint-placeholder-count="2"><div style="height:{{ s.h }};background:{{ s.bg }}"></div></sc-for>
+                </div>
+                <div style="font-family:'Geist Mono',monospace;font-size:12px;text-align:center;color:{{ m.labelColor }}">{{ m.label }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="background:#FFFFFF;border:1px solid #E7E5DF;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:14px;min-width:0;flex:1 1 280px">
+          <div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:16px;font-weight:600;letter-spacing:-0.01em">Upcoming absences</span><span style="font-size:13px;color:#6B6B72">Approved, next 3 weeks</span></div>
+          <div style="display:flex;flex-direction:column">
+            <sc-for list="{{ upcoming }}" as="u" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid #EEECE6">
+                <div style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;background:{{ u.avBg }};color:{{ u.avFg }}">{{ u.initials }}</div>
+                <div style="flex:1;display:flex;flex-direction:column;min-width:0"><span style="font-size:13px;font-weight:500">{{ u.name }}</span><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#8A8A90">{{ u.range }} · {{ u.days }}d</span></div>
+                <span style="font-size:12px;font-weight:500;padding:3px 8px;border-radius:6px;background:{{ u.whenBg }};color:#17171A;white-space:nowrap">{{ u.when }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+      <div style="background:#FFFFFF;border:1px solid #E7E5DF;border-radius:16px;overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #EEECE6">
+          <div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:16px;font-weight:600;letter-spacing:-0.01em">Needs your decision</span><span style="font-size:13px;color:#6B6B72">Pending requests, soonest start first</span></div>
+          <button onClick="{{ goReview }}" style="height:32px;padding:0 12px;border:1px solid #E1DFD8;border-radius:8px;background:#FFFFFF;font-size:13px;font-weight:500;cursor:pointer;color:#17171A" style-hover="border-color:#17171A">View all</button>
+        </div>
+        <div style="overflow-x:auto"><div style="min-width:720px"><sc-for list="{{ attention }}" as="r" hint-placeholder-count="4">
+          <div style="display:grid;grid-template-columns:minmax(180px,1.4fr) minmax(130px,1fr) minmax(120px,1.6fr) auto;gap:16px;align-items:center;padding:12px 20px;border-bottom:1px solid #EEECE6">
+            <div style="display:flex;align-items:center;gap:10px;min-width:0">
+              <div style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;background:{{ r.avBg }};color:{{ r.avFg }}">{{ r.initials }}</div>
+              <span style="font-weight:500">{{ r.name }}</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:2px"><span style="font-weight:500">{{ r.range }}</span><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#8A8A90">{{ r.days }} working days</span></div>
+            <span style="color:#55555C;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.reason }}</span>
+            <div style="display:flex;gap:8px;justify-content:flex-end">
+              <button onClick="{{ r.reject }}" style="height:32px;padding:0 12px;border:1px solid #E1DFD8;border-radius:8px;background:#FFFFFF;font-size:13px;font-weight:500;cursor:pointer;color:#17171A" style-hover="border-color:oklch(0.5 0.15 25);color:oklch(0.5 0.15 25)">Reject</button>
+              <button onClick="{{ r.approve }}" style="height:32px;padding:0 12px;border:0;border-radius:8px;background:#17171A;font-size:13px;font-weight:500;cursor:pointer;color:#FFFFFF" style-hover="background:#2A2A30">Approve</button>
+            </div>
+          </div>
+        </sc-for>
+        <sc-if value="{{ attentionEmpty }}" hint-placeholder-val="{{ false }}"><div style="padding:36px 20px;text-align:center;color:#8A8A90">You're all caught up.</div></sc-if></div></div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- VALIDATOR: REVIEW QUEUE -->
+    <sc-if value="{{ onReview }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="Requests" style="background:#FFFFFF;border:1px solid #E7E5DF;border-radius:16px;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;flex-wrap:wrap;border-bottom:1px solid #EEECE6">
+        <div style="display:flex;gap:2px;padding:3px;background:#F3F2EE;border-radius:10px">
+          <sc-for list="{{ statusTabs }}" as="t" hint-placeholder-count="4">
+            <button onClick="{{ t.go }}" style="height:30px;padding:0 12px;border:0;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:6px;background:{{ t.bg }};color:{{ t.fg }};box-shadow:{{ t.shadow }}">{{ t.label }}<span style="font-family:'Geist Mono',monospace;font-size:11px;color:#8A8A90">{{ t.count }}</span></button>
+          </sc-for>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:13px;color:#6B6B72">Employee</span>
+          <select value="{{ fUser }}" onChange="{{ setFUser }}" style="height:36px;min-width:190px;border:1px solid #E1DFD8;border-radius:10px;padding:0 10px;font-size:13px;background:#FFFFFF;color:#17171A;cursor:pointer;outline:none">
+            <sc-for list="{{ userOptions }}" as="o" hint-placeholder-count="4"><option value="{{ o.value }}">{{ o.label }}</option></sc-for>
+          </select>
+          <sc-if value="{{ hasFilters }}" hint-placeholder-val="{{ false }}"><button onClick="{{ clearFilters }}" style="height:36px;padding:0 10px;border:0;background:transparent;font-size:13px;color:#55555C;cursor:pointer;text-decoration:underline">Reset</button></sc-if>
+        </div>
+      </div>
+      <div style="overflow-x:auto"><div style="min-width:1000px"><div style="display:grid;grid-template-columns:minmax(170px,1.4fr) minmax(140px,1.2fr) 56px minmax(110px,1.6fr) 92px 108px 168px;gap:14px;padding:10px 20px;font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:#8A8A90;background:#FBFAF8;border-bottom:1px solid #EEECE6">
+        <span>Employee</span><span>Dates</span><span>Days</span><span>Reason</span><span>Submitted</span><span>Status</span><span style="text-align:right">Decision</span>
+      </div>
+      <sc-for list="{{ reviewRows }}" as="r" hint-placeholder-count="6">
+        <div style="border-bottom:1px solid #EEECE6;padding:12px 20px;display:flex;flex-direction:column;gap:8px" style-hover="background:#FCFBF9">
+          <div style="display:grid;grid-template-columns:minmax(170px,1.4fr) minmax(140px,1.2fr) 56px minmax(110px,1.6fr) 92px 108px 168px;gap:14px;align-items:center">
+            <div style="display:flex;align-items:center;gap:10px;min-width:0">
+              <div style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;background:{{ r.avBg }};color:{{ r.avFg }}">{{ r.initials }}</div>
+              <div style="display:flex;flex-direction:column;min-width:0"><span style="font-weight:500;white-space:nowrap">{{ r.name }}</span><span style="font-size:12px;color:#8A8A90;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.email }}</span></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:3px">
+              <span style="font-weight:500">{{ r.range }}</span>
+              <sc-if value="{{ r.hasOverlap }}" hint-placeholder-val="{{ false }}"><span title="{{ r.overlapNames }}" style="font-size:12px;color:oklch(0.48 0.11 70);display:flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:50%;background:oklch(0.75 0.15 75)"></span>{{ r.overlapText }}</span></sc-if>
+            </div>
+            <span style="font-family:'Geist Mono',monospace">{{ r.days }}d</span>
+            <span style="color:{{ r.reasonColor }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.reason }}</span>
+            <span style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B72">{{ r.submitted }}</span>
+            <span><span style="display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:500;background:{{ r.sBg }};color:{{ r.sFg }}"><span style="width:6px;height:6px;border-radius:50%;background:{{ r.sDot }}"></span>{{ r.status }}</span></span>
+            <div style="display:flex;gap:8px;justify-content:flex-end">
+              <sc-if value="{{ r.isPending }}" hint-placeholder-val="{{ true }}">
+                <button onClick="{{ r.reject }}" style="height:32px;padding:0 12px;border:1px solid #E1DFD8;border-radius:8px;background:#FFFFFF;font-size:13px;font-weight:500;cursor:pointer;color:#17171A" style-hover="border-color:oklch(0.5 0.15 25);color:oklch(0.5 0.15 25)">Reject</button>
+                <button onClick="{{ r.approve }}" style="height:32px;padding:0 12px;border:0;border-radius:8px;background:#17171A;font-size:13px;font-weight:500;cursor:pointer;color:#FFFFFF" style-hover="background:#2A2A30">Approve</button>
+              </sc-if>
+              <sc-if value="{{ r.isDecided }}" hint-placeholder-val="{{ false }}"><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#8A8A90">{{ r.decidedLabel }}</span></sc-if>
+            </div>
+          </div>
+          <sc-if value="{{ r.hasComment }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-left:42px;padding:8px 12px;border-radius:10px;background:oklch(0.975 0.015 25);font-size:13px;color:#55555C;line-height:1.45">{{ r.comment }}</div>
+          </sc-if>
+        </div>
+      </sc-for>
+      <sc-if value="{{ reviewEmpty }}" hint-placeholder-val="{{ false }}"><div style="padding:48px 20px;text-align:center;color:#8A8A90">No requests match these filters.</div></sc-if></div></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 20px;flex-wrap:wrap">
+        <span style="font-size:13px;color:#6B6B72">{{ pageInfo }}</span>
+        <div style="display:flex;gap:4px;align-items:center">
+          <button onClick="{{ prevPage }}" disabled="{{ prevDisabled }}" style="height:32px;padding:0 10px;border:1px solid #E1DFD8;border-radius:8px;background:#FFFFFF;font-size:13px;cursor:pointer;color:#17171A">Prev</button>
+          <sc-for list="{{ pages }}" as="p" hint-placeholder-count="3">
+            <button onClick="{{ p.go }}" style="width:32px;height:32px;border:1px solid {{ p.border }};border-radius:8px;background:{{ p.bg }};color:{{ p.fg }};font-family:'Geist Mono',monospace;font-size:12px;cursor:pointer">{{ p.n }}</button>
+          </sc-for>
+          <button onClick="{{ nextPage }}" disabled="{{ nextDisabled }}" style="height:32px;padding:0 10px;border:1px solid #E1DFD8;border-radius:8px;background:#FFFFFF;font-size:13px;cursor:pointer;color:#17171A">Next</button>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- TEAM CALENDAR -->
+    <sc-if value="{{ onTeam }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="Team calendar" style="background:#FFFFFF;border:1px solid #E7E5DF;border-radius:16px;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;flex-wrap:wrap;border-bottom:1px solid #EEECE6">
+        <div style="display:flex;align-items:center;gap:8px">
+          <button onClick="{{ prevMonth }}" style="width:32px;height:32px;border:1px solid #E1DFD8;border-radius:8px;background:#FFFFFF;cursor:pointer;font-size:14px;color:#17171A">‹</button>
+          <button onClick="{{ nextMonth }}" style="width:32px;height:32px;border:1px solid #E1DFD8;border-radius:8px;background:#FFFFFF;cursor:pointer;font-size:14px;color:#17171A">›</button>
+          <span style="font-size:16px;font-weight:600;letter-spacing:-0.01em;margin-left:6px">{{ cal.label }}</span>
+          <button onClick="{{ thisMonth }}" style="height:28px;padding:0 10px;border:0;border-radius:8px;background:#F3F2EE;font-size:12px;font-weight:500;cursor:pointer;color:#17171A;margin-left:4px">Today</button>
+        </div>
+        <div style="display:flex;gap:16px;font-size:12px;color:#55555C;align-items:center">
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:14px;height:8px;border-radius:3px;background:#17171A"></span>Approved</span>
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:14px;height:8px;border-radius:3px;background:repeating-linear-gradient(135deg,oklch(0.75 0.15 75) 0 2px,oklch(0.93 0.07 85) 2px 5px)"></span>Pending</span>
+          <span style="font-family:'Geist Mono',monospace;color:#8A8A90">{{ cal.summary }}</span>
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <div style="min-width:880px">
+          <div style="display:flex;border-bottom:1px solid #EEECE6;background:#FBFAF8">
+            <div style="width:200px;flex-shrink:0;padding:10px 20px;font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:#8A8A90">Team · {{ cal.count }}</div>
+            <div style="flex:1;display:flex">
+              <sc-for list="{{ cal.days }}" as="d" hint-placeholder-count="31">
+                <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;background:{{ d.bg }}">
+                  <span style="font-size:10px;color:#8A8A90">{{ d.wk }}</span>
+                  <span style="font-family:'Geist Mono',monospace;font-size:12px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:6px;background:{{ d.numBg }};color:{{ d.numFg }}">{{ d.n }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <sc-for list="{{ cal.rows }}" as="row" hint-placeholder-count="7">
+            <div style="display:flex;border-bottom:1px solid #EEECE6;background:{{ row.rowBg }}">
+              <div style="width:200px;flex-shrink:0;padding:10px 20px;display:flex;align-items:center;gap:10px">
+                <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;background:{{ row.avBg }};color:{{ row.avFg }}">{{ row.initials }}</div>
+                <div style="display:flex;flex-direction:column;min-width:0"><span style="font-size:13px;font-weight:500;white-space:nowrap">{{ row.name }}</span><span style="font-family:'Geist Mono',monospace;font-size:11px;color:#8A8A90">{{ row.off }}</span></div>
+              </div>
+              <div style="flex:1;display:flex">
+                <sc-for list="{{ row.cells }}" as="c" hint-placeholder-count="31">
+                  <div style="flex:1;display:flex;align-items:center;background:{{ c.colBg }};border-left:{{ c.todayLine }}">
+                    <div title="{{ c.tip }}" style="height:22px;width:100%;background:{{ c.bar }};border-radius:{{ c.radius }};margin:{{ c.margin }}"></div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+  </main>
+</div>
+</sc-if>
+
+<!-- NEW REQUEST DRAWER -->
+<sc-if value="{{ drawerOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:fixed;inset:0;z-index:40;display:flex;justify-content:flex-end">
+  <div onClick="{{ closeDrawer }}" style="position:absolute;inset:0;background:rgba(23,23,26,.28)"></div>
+  <form onSubmit="{{ submitRequest }}" data-screen-label="New request" style="position:relative;width:460px;max-width:100vw;height:100%;background:#FFFFFF;display:flex;flex-direction:column;box-shadow:-20px 0 60px rgba(23,23,26,.12)">
+    <div style="padding:22px 24px;border-bottom:1px solid #EEECE6;display:flex;justify-content:space-between;align-items:flex-start">
+      <div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:20px;font-weight:600;letter-spacing:-0.02em">New time-off request</span><span style="font-size:13px;color:#6B6B72">Omar Benali will review it.</span></div>
+      <button type="button" onClick="{{ closeDrawer }}" style="width:32px;height:32px;border:0;border-radius:8px;background:#F3F2EE;cursor:pointer;font-size:16px;color:#17171A">×</button>
+    </div>
+    <div style="flex:1;overflow:auto;padding:24px;display:flex;flex-direction:column;gap:20px">
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <span style="font-size:13px;font-weight:500">Start</span>
+          <div style="display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:10px">
+            <input type="date" aria-label="Start date" min="{{ todayIso }}" value="{{ form.start }}" onChange="{{ setStart }}" style="height:42px;border-radius:10px;padding:0 12px;font-size:14px;background:#FBFAF8;outline:none;color:#17171A;width:100%;min-width:0;border:1px solid {{ err.startBorder }}"></input>
+            <input type="time" aria-label="Start time" step="900" value="{{ form.startTime }}" onChange="{{ setStartTime }}" style="height:42px;border-radius:10px;padding:0 12px;font-size:14px;background:#FBFAF8;outline:none;color:#17171A;width:100%;min-width:0;border:1px solid {{ err.startBorder }};font-family:'Geist Mono',monospace"></input>
+          </div>
+          <sc-if value="{{ err.hasStart }}" hint-placeholder-val="{{ false }}"><span style="font-size:12px;color:oklch(0.5 0.15 25)">{{ err.start }}</span></sc-if>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <span style="font-size:13px;font-weight:500">End</span>
+          <div style="display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:10px">
+            <input type="date" aria-label="End date" min="{{ form.start }}" value="{{ form.end }}" onChange="{{ setEnd }}" style="height:42px;border-radius:10px;padding:0 12px;font-size:14px;background:#FBFAF8;outline:none;color:#17171A;width:100%;min-width:0;border:1px solid {{ err.endBorder }}"></input>
+            <input type="time" aria-label="End time" step="900" value="{{ form.endTime }}" onChange="{{ setEndTime }}" style="height:42px;border-radius:10px;padding:0 12px;font-size:14px;background:#FBFAF8;outline:none;color:#17171A;width:100%;min-width:0;border:1px solid {{ err.endBorder }};font-family:'Geist Mono',monospace"></input>
+          </div>
+          <sc-if value="{{ err.hasEnd }}" hint-placeholder-val="{{ false }}"><span style="font-size:12px;color:oklch(0.5 0.15 25)">{{ err.end }}</span></sc-if>
+        </div>
+      </div>
+      <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500">
+        <span style="display:flex;justify-content:space-between">Reason <span style="font-weight:400;color:#8A8A90">Optional</span></span>
+        <textarea value="{{ form.reason }}" onChange="{{ setReason }}" rows="4" maxlength="240" placeholder="e.g. Family trip" style="border:1px solid #E1DFD8;border-radius:10px;padding:10px 12px;font-size:14px;background:#FBFAF8;outline:none;resize:vertical;color:#17171A"></textarea>
+        <span style="font-family:'Geist Mono',monospace;font-size:11px;font-weight:400;color:#8A8A90;text-align:right">{{ reasonCount }}/240</span>
+      </label>
+      <sc-if value="{{ err.hasOverlap }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:12px 14px;border-radius:12px;background:oklch(0.975 0.015 25);color:oklch(0.45 0.15 25);font-size:13px;line-height:1.45">{{ err.overlap }}</div>
+      </sc-if>
+      <sc-if value="{{ preview.show }}" hint-placeholder-val="{{ false }}">
+        <div style="border:1px solid #E7E5DF;border-radius:14px;overflow:hidden">
+          <div style="padding:14px 16px;display:flex;justify-content:space-between;align-items:baseline;background:#FBFAF8;border-bottom:1px solid #EEECE6">
+            <span style="font-size:13px;color:#55555C">Summary</span>
+            <span style="font-size:22px;font-weight:600;letter-spacing:-0.02em">{{ preview.days }} <span style="font-size:13px;font-weight:400;color:#6B6B72">{{ preview.unit }}</span></span>
+          </div>
+          <div style="padding:12px 16px;display:flex;flex-direction:column;gap:10px;font-size:13px">
+            <div style="display:flex;justify-content:space-between"><span style="color:#6B6B72">Period</span><span style="font-weight:500">{{ preview.range }}</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:#6B6B72">Balance after approval</span><span style="font-weight:500;color:{{ preview.balColor }}">{{ preview.after }} days</span></div>
+            <div style="display:flex;justify-content:space-between;gap:12px"><span style="color:#6B6B72;flex-shrink:0">Teammates off</span><span style="font-weight:500;text-align:right">{{ preview.mates }}</span></div>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+    <div style="padding:16px 24px;border-top:1px solid #EEECE6;display:flex;gap:10px;justify-content:flex-end">
+      <button type="button" onClick="{{ closeDrawer }}" style="height:40px;padding:0 16px;border:1px solid #E1DFD8;border-radius:10px;background:#FFFFFF;font-size:14px;font-weight:500;cursor:pointer;color:#17171A">Cancel</button>
+      <button type="submit" style="height:40px;padding:0 18px;border:0;border-radius:10px;background:#17171A;color:#FFFFFF;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#2A2A30">Submit request</button>
+    </div>
+  </form>
+</div>
+</sc-if>
+
+<!-- REJECT MODAL -->
+<sc-if value="{{ rejectOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:24px">
+  <div onClick="{{ closeReject }}" style="position:absolute;inset:0;background:rgba(23,23,26,.32)"></div>
+  <div data-screen-label="Reject request" style="position:relative;width:480px;max-width:100%;background:#FFFFFF;border-radius:18px;box-shadow:0 24px 70px rgba(23,23,26,.2);display:flex;flex-direction:column;overflow:hidden">
+    <div style="padding:22px 24px 0;display:flex;flex-direction:column;gap:6px">
+      <span style="font-size:20px;font-weight:600;letter-spacing:-0.02em">Reject request</span>
+      <span style="font-size:13px;color:#6B6B72">{{ rj.name }} will see your comment.</span>
+    </div>
+    <div style="margin:18px 24px 0;padding:12px 14px;border-radius:12px;background:#FBFAF8;border:1px solid #EEECE6;display:flex;align-items:center;gap:12px">
+      <div style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;background:{{ rj.avBg }};color:{{ rj.avFg }}">{{ rj.initials }}</div>
+      <div style="flex:1;display:flex;flex-direction:column"><span style="font-weight:500">{{ rj.range }}</span><span style="font-size:12px;color:#8A8A90">{{ rj.days }} working days · {{ rj.reason }}</span></div>
+    </div>
+    <label style="padding:18px 24px 0;display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500">
+      <span style="display:flex;justify-content:space-between">Comment <span style="font-weight:400;color:#8A8A90">Required</span></span>
+      <textarea value="{{ rejectComment }}" onChange="{{ setRejectComment }}" rows="4" placeholder="Explain why, and suggest alternative dates if possible" style="border:1px solid {{ rejectBorder }};border-radius:10px;padding:10px 12px;font-size:14px;background:#FBFAF8;outline:none;resize:vertical;color:#17171A"></textarea>
+      <sc-if value="{{ rejectError }}" hint-placeholder-val="{{ false }}"><span style="font-size:12px;font-weight:400;color:oklch(0.5 0.15 25)">A comment is required to reject a request.</span></sc-if>
+    </label>
+    <div style="padding:20px 24px;display:flex;gap:10px;justify-content:flex-end">
+      <button onClick="{{ closeReject }}" style="height:40px;padding:0 16px;border:1px solid #E1DFD8;border-radius:10px;background:#FFFFFF;font-size:14px;font-weight:500;cursor:pointer;color:#17171A">Cancel</button>
+      <button onClick="{{ confirmReject }}" style="height:40px;padding:0 18px;border:0;border-radius:10px;background:oklch(0.55 0.17 25);color:#FFFFFF;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:oklch(0.5 0.17 25)">Reject request</button>
+    </div>
+  </div>
+</div>
+</sc-if>
+
+<div style="position:fixed;right:24px;bottom:24px;z-index:60;display:flex;flex-direction:column;gap:10px;width:380px;max-width:calc(100vw - 48px);pointer-events:none">
+  <sc-for list="{{ toasts }}" as="t" hint-placeholder-count="0">
+    <div role="status" style="pointer-events:auto;display:flex;gap:12px;align-items:flex-start;padding:14px;border-radius:14px;background:{{ t.bg }};border:1px solid {{ t.border }};box-shadow:0 12px 40px rgba(23,23,26,.14)">
+      <span style="width:8px;height:8px;border-radius:50%;margin-top:6px;flex-shrink:0;background:{{ t.dot }}"></span>
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <sc-if value="{{ t.isLive }}" hint-placeholder-val="{{ false }}"><span style="font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:.08em;padding:2px 6px;border-radius:5px;background:oklch(0.91 0.17 122);color:#17171A">LIVE</span></sc-if>
+          <span style="font-size:13px;font-weight:600;color:{{ t.fg }}">{{ t.title }}</span>
+        </div>
+        <span style="font-size:13px;line-height:1.4;color:{{ t.sub }}">{{ t.body }}</span>
+        <sc-if value="{{ t.hasAction }}" hint-placeholder-val="{{ false }}"><button onClick="{{ t.action }}" style="align-self:flex-start;margin-top:6px;height:28px;padding:0 10px;border:0;border-radius:7px;background:oklch(0.91 0.17 122);color:#17171A;font-size:12px;font-weight:600;cursor:pointer">{{ t.actionLabel }}</button></sc-if>
+      </div>
+      <button onClick="{{ t.dismiss }}" aria-label="Dismiss" style="width:24px;height:24px;border:0;border-radius:6px;background:transparent;color:{{ t.sub }};cursor:pointer;font-size:15px;flex-shrink:0">×</button>
+    </div>
+  </sc-for>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;startAs&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;signed out&quot;,&quot;requester&quot;,&quot;validator&quot;],&quot;default&quot;:&quot;signed out&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prototype&quot;},&quot;pageSize&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:6,&quot;min&quot;:3,&quot;max&quot;:12,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Prototype&quot;},&quot;showOverlapHints&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Prototype&quot;},&quot;simulateLive&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Prototype&quot;}}">
+const TODAY = '2026-10-18';
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MONL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const WK = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const ALLOWANCE = 25;
+const parse = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); };
+const iso = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate()+n); return iso(d); };
+const diffDays = (a, b) => Math.round((parse(b) - parse(a)) / 864e5);
+const workdays = (a, b) => { let n = 0; const d = parse(a), e = parse(b); while (d <= e) { const w = d.getDay(); if (w && w !== 6) n++; d.setDate(d.getDate()+1); } return n; };
+const fmt = s => { const d = parse(s); return d.getDate() + ' ' + MON[d.getMonth()]; };
+const fmtRange = (a, b) => { const x = parse(a), y = parse(b); if (a === b) return fmt(a); if (x.getMonth() === y.getMonth() && x.getFullYear() === y.getFullYear()) return x.getDate() + '–' + y.getDate() + ' ' + MON[x.getMonth()]; return fmt(a) + ' – ' + fmt(b); };
+const wkRange = (a, b) => WK[parse(a).getDay()] + ' → ' + WK[parse(b).getDay()] + ' · ' + parse(b).getFullYear();
+
+const STATUS = {
+  Pending:  { bg: 'oklch(0.95 0.05 85)',  fg: 'oklch(0.47 0.11 70)', dot: 'oklch(0.75 0.15 75)' },
+  Approved: { bg: 'oklch(0.95 0.045 150)', fg: 'oklch(0.44 0.11 150)', dot: 'oklch(0.66 0.15 150)' },
+  Rejected: { bg: 'oklch(0.95 0.035 25)',  fg: 'oklch(0.5 0.15 25)',   dot: 'oklch(0.64 0.18 25)' },
+};
+const USERS = [
+  { id: 1, name: 'Lina Haddad',  email: 'lina@acme.io',  role: 'Requester', hue: 300 },
+  { id: 2, name: 'Omar Benali',  email: 'omar@acme.io',  role: 'Validator', hue: 120 },
+  { id: 3, name: 'Sara Kim',     email: 'sara@acme.io',  role: 'Requester', hue: 20 },
+  { id: 4, name: 'Mehdi Alaoui', email: 'mehdi@acme.io', role: 'Requester', hue: 230 },
+  { id: 5, name: 'Julia Novak',  email: 'julia@acme.io', role: 'Requester', hue: 60 },
+  { id: 6, name: 'Tom Becker',   email: 'tom@acme.io',   role: 'Requester', hue: 180 },
+  { id: 7, name: 'Aya Tanaka',   email: 'aya@acme.io',   role: 'Requester', hue: 340 },
+  { id: 8, name: 'Diego Ruiz',   email: 'diego@acme.io', role: 'Requester', hue: 90 },
+].map(u => ({ ...u, initials: u.name.split(' ').map(p => p[0]).join(''), avBg: `oklch(0.92 0.045 ${u.hue})`, avFg: `oklch(0.38 0.09 ${u.hue})` }));
+const U = id => USERS.find(u => u.id === id);
+
+let rid = 100;
+const R = (userId, start, end, status, reason, createdAt, comment, decidedAt) => ({ id: ++rid, userId, start, end, status, reason: reason || '', createdAt, comment: comment || '', decidedAt: decidedAt || '' });
+const SEED = [
+  R(1,'2026-07-20','2026-07-31','Approved','Summer trip','2026-06-02','', '2026-06-03'),
+  R(1,'2026-09-14','2026-09-15','Rejected','Long weekend','2026-08-28','Release week for v3.2 — could you take the following Monday and Tuesday instead?','2026-08-29'),
+  R(1,'2026-11-02','2026-11-06','Approved','Family visit','2026-09-30','','2026-10-01'),
+  R(1,'2026-12-21','2026-12-31','Pending','End-of-year holidays','2026-10-12'),
+  R(3,'2026-08-03','2026-08-14','Approved','','2026-06-20','','2026-06-21'),
+  R(3,'2026-10-19','2026-10-23','Approved','Wedding','2026-09-02','','2026-09-02'),
+  R(3,'2026-11-16','2026-11-20','Pending','Conference, then a few days off','2026-10-14'),
+  R(4,'2026-09-07','2026-09-11','Approved','','2026-08-10','','2026-08-11'),
+  R(4,'2026-10-26','2026-10-30','Pending','Moving apartments','2026-10-09'),
+  R(4,'2026-12-28','2027-01-01','Pending','','2026-10-16'),
+  R(5,'2026-07-06','2026-07-10','Rejected','','2026-06-15','Two new hires start that week and need onboarding coverage.','2026-06-16'),
+  R(5,'2026-10-12','2026-10-16','Approved','Hiking trip','2026-09-01','','2026-09-02'),
+  R(5,'2026-11-03','2026-11-05','Pending','Medical follow-up and recovery','2026-10-15'),
+  R(6,'2026-08-17','2026-08-28','Approved','Summer break','2026-07-01','','2026-07-02'),
+  R(6,'2026-10-20','2026-10-21','Pending','Personal errands','2026-10-13'),
+  R(6,'2026-11-23','2026-11-27','Approved','','2026-09-20','','2026-09-21'),
+  R(7,'2026-09-21','2026-09-25','Rejected','Visiting family','2026-09-05','Quarter close — we need the full team that week. Happy to approve the week after.','2026-09-06'),
+  R(7,'2026-10-14','2026-10-20','Approved','Trip to Kyoto','2026-08-30','','2026-08-31'),
+  R(7,'2026-12-07','2026-12-11','Pending','','2026-10-17'),
+  R(8,'2026-06-22','2026-07-03','Approved','Summer holidays','2026-05-12','','2026-05-13'),
+  R(8,'2026-10-05','2026-10-09','Approved','','2026-09-10','','2026-09-10'),
+  R(8,'2026-11-09','2026-11-13','Pending','Ski trip','2026-10-11'),
+];
+const pill = s => ({ status: s, sBg: STATUS[s].bg, sFg: STATUS[s].fg, sDot: STATUS[s].dot });
+const overlaps = (r, a, b) => r.start <= b && r.end >= a;
+
+class Component extends DCLogic {
+  state = (() => {
+    const s = this.props.startAs || 'signed out';
+    const user = s === 'requester' ? U(1) : s === 'validator' ? U(2) : null;
+    return {
+      user, screen: user ? (user.role === 'Validator' ? 'overview' : 'mine') : null,
+      requests: SEED, email: '', password: '', loginError: '',
+      drawer: false, form: { start: '', end: '', startTime: '09:00', endTime: '18:00', reason: '' }, touched: false,
+      tab: 'All', fStatus: 'Pending', fUser: 'all', page: 1,
+      rejectId: null, rejectComment: '', rejectError: false,
+      monthOffset: 0, toasts: [],
+    };
+  })();
+
+  push(kind, title, body, extra) {
+    const id = Date.now() + Math.random();
+    this.setState(s => ({ toasts: [...s.toasts.slice(-3), { id, kind, title, body, ...(extra || {}) }] }));
+    setTimeout(() => this.dismiss(id), kind === 'error' ? 6500 : kind === 'live' ? 9000 : 4500);
+  }
+  dismiss(id) { this.setState(s => ({ toasts: s.toasts.filter(t => t.id !== id) })); }
+  componentDidMount() { if (this.state.user) this.scheduleLive(this.state.user); }
+  componentWillUnmount() { clearTimeout(this._live); }
+  // Simulates a server push (e.g. a socket event) a few seconds after sign-in
+  scheduleLive(u) {
+    clearTimeout(this._live);
+    if (!(this.props.simulateLive ?? true)) return;
+    this._live = setTimeout(() => {
+      if (!this.state.user || this.state.user.id !== u.id) return;
+      if (u.role === 'Validator') {
+        if (this.state.requests.some(r => r.id === 999)) return;
+        const r = { id: 999, userId: 6, start: '2026-12-14', end: '2026-12-18', reason: 'Visiting parents', status: 'Pending', createdAt: TODAY, comment: '', decidedAt: '' };
+        this.setState(s => ({ requests: [...s.requests, r] }));
+        this.push('live', 'New request from Tom Becker', '14–18 Dec · 5 working days', { actionLabel: 'Review', action: () => this.setState({ screen: 'review', fStatus: 'Pending', fUser: 'all', page: 1 }) });
+      } else {
+        const r = this.state.requests.find(x => x.userId === u.id && x.status === 'Pending');
+        if (!r) return;
+        this.updateStatus(r.id, 'Approved');
+        this.push('live', 'Your request was approved', fmtRange(r.start, r.end) + ' · approved by Omar Benali just now');
+      }
+    }, 7000);
+  }
+  login(u) { this.scheduleLive(u); this.setState({ user: u, screen: u.role === 'Validator' ? 'overview' : 'mine', loginError: '', email: '', password: '', page: 1 }); }
+  updateStatus(id, status, comment) {
+    this.setState(s => ({ requests: s.requests.map(r => r.id === id ? { ...r, status, comment: comment || '', decidedAt: TODAY } : r) }));
+  }
+
+  formErrors() {
+    const { form, requests, user } = this.state;
+    const e = {};
+    if (!form.start) e.start = 'Pick a start date';
+    else if (form.start < TODAY) e.start = "Start date can't be in the past";
+    if (!form.end) e.end = 'Pick an end date';
+    else if (form.start && (form.end < form.start || (form.end === form.start && form.endTime <= form.startTime))) e.end = 'End must be after the start';
+    if (!e.start && (!form.startTime || !form.endTime)) e.start = 'Pick a start and end time';
+    if (form.start && form.end && !e.start && !e.end) {
+      const clash = requests.find(r => user && r.userId === user.id && r.status !== 'Rejected' && overlaps(r, form.start, form.end));
+      if (clash) e.overlap = `These dates overlap your ${clash.status.toLowerCase()} request for ${fmtRange(clash.start, clash.end)}. Pick different dates.`;
+    }
+    return e;
+  }
+
+  renderVals() {
+    const st = this.state;
+    const { user, screen, requests } = st;
+    const pageSize = this.props.pageSize ?? 6;
+    const showHints = this.props.showOverlapHints ?? true;
+    const isValidator = user && user.role === 'Validator';
+    const pending = requests.filter(r => r.status === 'Pending');
+    const go = sc => () => this.setState({ screen: sc });
+
+    const v = {
+      signedOut: !user, signedIn: !!user,
+      email: st.email, password: st.password, loginError: st.loginError, hasLoginError: !!st.loginError,
+      setEmail: e => this.setState({ email: e.target.value }),
+      setPassword: e => this.setState({ password: e.target.value }),
+      signIn: e => { e.preventDefault(); const u = USERS.find(x => x.email === st.email.trim().toLowerCase()); if (!u || st.password !== 'demo1234') return this.setState({ loginError: 'That email and password don\u2019t match a demo account.' }); this.login(u); },
+      demoUsers: [U(1), U(2)].map(u => ({ ...u, pick: () => this.login(u) })),
+      loginPreview: [requests[6], requests[17], requests[16]].map(r => ({ name: U(r.userId).name, range: fmtRange(r.start, r.end) + ' · ' + workdays(r.start, r.end) + 'd', ...pill(r.status) })),
+      signOut: () => { clearTimeout(this._live); this.setState({ user: null, screen: null, drawer: false, rejectId: null, toasts: [] }); },
+      todayLabel: 'Sunday, 18 October 2026',
+      pendingCount: pending.length,
+      todayIso: TODAY,
+      toasts: st.toasts.map(t => {
+        const live = t.kind === 'live';
+        return { ...t, isLive: live, hasAction: !!t.action, dismiss: () => this.dismiss(t.id),
+          bg: live ? '#17171A' : '#FFFFFF', border: live ? '#17171A' : '#E7E5DF', fg: live ? '#FFFFFF' : '#17171A', sub: live ? '#A6A6AE' : '#6B6B72',
+          dot: { success: STATUS.Approved.dot, error: STATUS.Rejected.dot, info: '#8A8A90', live: 'oklch(0.91 0.17 122)' }[t.kind] };
+      }),
+    };
+    if (!user) return v;
+
+    v.me = user;
+    v.roleLabel = user.role;
+    v.isRequester = !isValidator;
+    const navItems = isValidator
+      ? [{ key: 'overview', label: 'Overview' }, { key: 'review', label: 'Requests', badge: pending.length }, { key: 'team', label: 'Team calendar' }]
+      : [{ key: 'mine', label: 'My requests' }, { key: 'team', label: 'Team calendar' }];
+    v.nav = navItems.map(n => { const a = n.key === screen; return { ...n, hasBadge: !!n.badge, go: go(n.key), bg: a ? '#FFFFFF' : 'transparent', fg: a ? '#17171A' : '#55555C', border: a ? '#E7E5DF' : 'transparent', shadow: a ? '0 1px 2px rgba(23,23,26,.05)' : 'none', mark: a ? 'oklch(0.75 0.17 122)' : '#C9C7C0' }; });
+    v.title = { mine: 'My requests', team: 'Team calendar', overview: 'Overview', review: 'Requests' }[screen];
+    v.onMine = screen === 'mine'; v.onTeam = screen === 'team'; v.onOverview = screen === 'overview'; v.onReview = screen === 'review';
+    v.showReviewCta = isValidator && screen === 'overview' && pending.length > 0;
+    v.goReview = () => this.setState({ screen: 'review', fStatus: 'Pending', fUser: 'all', page: 1 });
+    v.openDrawer = (prefill) => this.setState({ drawer: true, touched: false, form: { start: '', end: '', startTime: '09:00', endTime: '18:00', reason: '' } });
+    v.closeDrawer = () => this.setState({ drawer: false });
+
+    // Requester data
+    const mine = requests.filter(r => r.userId === user.id);
+    const used = mine.filter(r => r.status === 'Approved' && r.start.startsWith('2026')).reduce((a, r) => a + workdays(r.start, r.end), 0);
+    const pend = mine.filter(r => r.status === 'Pending').reduce((a, r) => a + workdays(r.start, r.end), 0);
+    const left = ALLOWANCE - used;
+    v.bal = { allowance: ALLOWANCE, used, pending: pend, left, usedPct: (used / ALLOWANCE * 100) + '%', pendingPct: (Math.min(pend, left) / ALLOWANCE * 100) + '%' };
+    const nx = mine.filter(r => r.status !== 'Rejected' && r.end >= TODAY).sort((a, b) => a.start.localeCompare(b.start))[0];
+    v.next = nx ? { has: true, none: false, range: fmtRange(nx.start, nx.end), days: workdays(nx.start, nx.end), when: nx.start <= TODAY ? 'happening now' : 'in ' + diffDays(TODAY, nx.start) + ' days', ...pill(nx.status) } : { has: false, none: true };
+    const mp = mine.filter(r => r.status === 'Pending');
+    v.myPending = { count: mp.length, label: mp.length === 1 ? 'request' : 'requests', days: pend };
+    v.myTabs = ['All', 'Pending', 'Approved', 'Rejected'].map(t => { const a = st.tab === t; return { label: t, count: t === 'All' ? mine.length : mine.filter(r => r.status === t).length, go: () => this.setState({ tab: t }), bg: a ? '#FFFFFF' : 'transparent', fg: a ? '#17171A' : '#6B6B72', shadow: a ? '0 1px 2px rgba(23,23,26,.08)' : 'none' }; });
+    const myList = mine.filter(r => st.tab === 'All' || r.status === st.tab).sort((a, b) => b.start.localeCompare(a.start));
+    v.myRows = myList.map(r => ({
+      range: fmtRange(r.start, r.end), weekdays: r.startTime ? WK[parse(r.start).getDay()] + ' ' + r.startTime + ' → ' + WK[parse(r.end).getDay()] + ' ' + r.endTime : wkRange(r.start, r.end), days: workdays(r.start, r.end),
+      reason: r.reason || 'No reason given', reasonColor: r.reason ? '#17171A' : '#A6A6AE',
+      submitted: fmt(r.createdAt), ...pill(r.status),
+      canWithdraw: r.status === 'Pending', locked: r.status === 'Approved', isRejected: r.status === 'Rejected',
+      hasComment: r.status === 'Rejected' && !!r.comment, comment: r.comment,
+      withdraw: () => { this.setState(s => ({ requests: s.requests.filter(x => x.id !== r.id) })); this.push('info', 'Request withdrawn', fmtRange(r.start, r.end) + ' is no longer pending.'); },
+      resubmit: () => this.setState({ drawer: true, touched: false, form: { start: '', end: '', startTime: '09:00', endTime: '18:00', reason: r.reason } }),
+    }));
+    v.myEmpty = myList.length === 0;
+
+    // Drawer
+    const f = st.form;
+    const errs = this.formErrors();
+    const showErr = k => !!errs[k] && (st.touched || (k === 'start' && f.start) || (k === 'end' && f.end && f.start));
+    v.form = f;
+    v.err = {
+      start: errs.start, hasStart: showErr('start'), startBorder: showErr('start') ? 'oklch(0.6 0.17 25)' : '#E1DFD8',
+      end: errs.end, hasEnd: showErr('end'), endBorder: showErr('end') ? 'oklch(0.6 0.17 25)' : '#E1DFD8',
+      overlap: errs.overlap, hasOverlap: !!errs.overlap,
+    };
+    v.reasonCount = f.reason.length;
+    v.drawerOpen = st.drawer;
+    const valid = Object.keys(errs).length === 0;
+    if (f.start && f.end && !errs.end && f.startTime && f.endTime) {
+      const same = f.start === f.end;
+      const mins = t => { const [a, b] = t.split(':').map(Number); return a * 60 + b; };
+      const hrs = Math.round((mins(f.endTime) - mins(f.startTime)) / 60 * 4) / 4;
+      const d = same ? Math.round(Math.min(hrs, 8) / 8 * 10) / 10 : workdays(f.start, f.end);
+      const mates = requests.filter(r => r.userId !== user.id && r.status !== 'Rejected' && overlaps(r, f.start, f.end)).map(r => U(r.userId).name.split(' ')[0]);
+      const uniq = [...new Set(mates)];
+      v.preview = { show: true, days: same ? hrs : d, unit: same ? (hrs === 1 ? 'hour' : 'hours') : 'working days', range: same ? fmt(f.start) + ' · ' + f.startTime + '–' + f.endTime : fmt(f.start) + ' ' + f.startTime + ' → ' + fmt(f.end) + ' ' + f.endTime, after: left - pend - d, balColor: left - pend - d < 0 ? 'oklch(0.5 0.15 25)' : '#17171A', mates: uniq.length ? uniq.join(', ') : 'Nobody' };
+    } else v.preview = { show: false };
+    const upd = k => e => this.setState({ form: { ...st.form, [k]: e.target.value } });
+    v.setStart = upd('start'); v.setEnd = upd('end'); v.setStartTime = upd('startTime'); v.setEndTime = upd('endTime'); v.setReason = upd('reason');
+    v.submitRequest = e => {
+      e.preventDefault();
+      if (!valid) { this.setState({ touched: true }); return this.push('error', 'Couldn\u2019t submit request', errs.start || errs.end || errs.overlap); }
+      const r = { id: Date.now(), userId: user.id, start: f.start, end: f.end, startTime: f.startTime, endTime: f.endTime, reason: f.reason.trim(), status: 'Pending', createdAt: TODAY, comment: '', decidedAt: '' };
+      this.setState(s => ({ requests: [...s.requests, r], drawer: false, tab: 'All' }));
+      this.push('success', 'Request submitted', fmtRange(f.start, f.end) + ' · Omar Benali has been notified.');
+    };
+
+    // Validator review
+    const rowFor = r => {
+      const u = U(r.userId);
+      const ov = requests.filter(x => x.userId !== r.userId && x.status === 'Approved' && overlaps(x, r.start, r.end));
+      const names = [...new Set(ov.map(x => U(x.userId).name))];
+      return {
+        id: r.id, name: u.name, email: u.email, initials: u.initials, avBg: u.avBg, avFg: u.avFg,
+        range: fmtRange(r.start, r.end), days: workdays(r.start, r.end),
+        reason: r.reason || 'No reason given', reasonColor: r.reason ? '#17171A' : '#A6A6AE',
+        submitted: fmt(r.createdAt), ...pill(r.status),
+        isPending: r.status === 'Pending', isDecided: r.status !== 'Pending', decidedLabel: r.decidedAt ? 'on ' + fmt(r.decidedAt) : '',
+        hasOverlap: showHints && r.status === 'Pending' && names.length > 0, overlapNames: names.join(', '),
+        overlapText: names.length === 1 ? names[0].split(' ')[0] + ' is off' : names.length + ' others off',
+        hasComment: r.status === 'Rejected' && !!r.comment, comment: r.comment,
+        approve: () => { this.updateStatus(r.id, 'Approved'); this.push('success', 'Request approved', `${u.name} has been notified.`); },
+        reject: () => this.setState({ rejectId: r.id, rejectComment: '', rejectError: false }),
+      };
+    };
+    const byUser = st.fUser === 'all' ? requests : requests.filter(r => String(r.userId) === st.fUser);
+    v.statusTabs = ['All', 'Pending', 'Approved', 'Rejected'].map(t => { const a = st.fStatus === t; return { label: t, count: t === 'All' ? byUser.length : byUser.filter(r => r.status === t).length, go: () => this.setState({ fStatus: t, page: 1 }), bg: a ? '#FFFFFF' : 'transparent', fg: a ? '#17171A' : '#6B6B72', shadow: a ? '0 1px 2px rgba(23,23,26,.08)' : 'none' }; });
+    v.userOptions = [{ value: 'all', label: 'All employees' }, ...USERS.filter(u => u.role === 'Requester').map(u => ({ value: String(u.id), label: u.name }))];
+    v.fUser = st.fUser;
+    v.setFUser = e => this.setState({ fUser: e.target.value, page: 1 });
+    v.hasFilters = st.fUser !== 'all' || st.fStatus !== 'All';
+    v.clearFilters = () => this.setState({ fUser: 'all', fStatus: 'All', page: 1 });
+    const filtered = byUser.filter(r => st.fStatus === 'All' || r.status === st.fStatus).sort((a, b) => ((b.status === 'Pending') - (a.status === 'Pending')) || b.createdAt.localeCompare(a.createdAt));
+    const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
+    const page = Math.min(st.page, pages);
+    v.reviewRows = filtered.slice((page - 1) * pageSize, page * pageSize).map(rowFor);
+    v.reviewEmpty = filtered.length === 0;
+    v.pageInfo = filtered.length ? `Showing ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, filtered.length)} of ${filtered.length}` : 'No results';
+    v.pages = Array.from({ length: pages }, (_, i) => { const a = i + 1 === page; return { n: i + 1, go: () => this.setState({ page: i + 1 }), bg: a ? '#17171A' : '#FFFFFF', fg: a ? '#FFFFFF' : '#17171A', border: a ? '#17171A' : '#E1DFD8' }; });
+    v.prevDisabled = page <= 1; v.nextDisabled = page >= pages;
+    v.prevPage = () => this.setState({ page: Math.max(1, page - 1) });
+    v.nextPage = () => this.setState({ page: Math.min(pages, page + 1) });
+
+    // Reject modal
+    const rr = requests.find(r => r.id === st.rejectId);
+    v.rejectOpen = !!rr;
+    v.rj = rr ? { ...rowFor(rr) } : {};
+    v.rejectComment = st.rejectComment;
+    v.rejectError = st.rejectError;
+    v.rejectBorder = st.rejectError ? 'oklch(0.6 0.17 25)' : '#E1DFD8';
+    v.setRejectComment = e => this.setState({ rejectComment: e.target.value, rejectError: false });
+    v.closeReject = () => this.setState({ rejectId: null });
+    v.confirmReject = () => {
+      if (!st.rejectComment.trim()) { this.setState({ rejectError: true }); return this.push('error', 'Comment required', 'Add a comment before rejecting this request.'); }
+      this.updateStatus(rr.id, 'Rejected', st.rejectComment.trim());
+      this.setState({ rejectId: null });
+      this.push('success', 'Request rejected', `${U(rr.userId).name} will see your comment.`);
+    };
+
+    // Overview analytics
+    const team = USERS.filter(u => u.role === 'Requester');
+    const decided = requests.filter(r => r.status !== 'Pending');
+    const approved = requests.filter(r => r.status === 'Approved');
+    const oldest = pending.slice().sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
+    const horizon = addDays(TODAY, 14);
+    const outSoon = new Set(approved.filter(r => overlaps(r, TODAY, horizon)).map(r => r.userId));
+    v.kpi = {
+      pending: pending.length, oldest: oldest ? fmt(oldest.createdAt) : '—',
+      rate: decided.length ? Math.round(approved.length / decided.length * 100) + '%' : '—', decided: decided.length,
+      approvedDays: approved.filter(r => r.start.startsWith('2026')).reduce((a, r) => a + workdays(r.start, r.end), 0),
+      people: new Set(approved.map(r => r.userId)).size, outSoon: outSoon.size, team: team.length,
+    };
+    v.legend = [{ label: 'Approved', color: '#17171A' }, { label: 'Pending', color: 'oklch(0.8 0.15 80)' }, { label: 'Rejected', color: 'oklch(0.8 0.08 25)' }];
+    const months = [6, 7, 8, 9, 10, 11];
+    const sums = months.map(m => { const o = { Approved: 0, Pending: 0, Rejected: 0 }; requests.forEach(r => { const d = parse(r.start); if (d.getFullYear() === 2026 && d.getMonth() === m) o[r.status] += workdays(r.start, r.end); }); return o; });
+    const max = Math.max(...sums.map(s => s.Approved + s.Pending + s.Rejected), 1) * 1.1;
+    const segColor = { Approved: '#17171A', Pending: 'oklch(0.8 0.15 80)', Rejected: 'oklch(0.8 0.08 25)' };
+    v.chart = months.map((m, i) => { const s = sums[i]; return { label: MON[m], total: s.Approved + s.Pending + s.Rejected, track: m === 9 ? 'oklch(0.96 0.06 122)' : '#F6F5F1', labelColor: m === 9 ? '#17171A' : '#8A8A90', segs: ['Rejected', 'Pending', 'Approved'].filter(k => s[k]).map(k => ({ h: (s[k] / max * 100) + '%', bg: segColor[k] })) }; });
+    v.upcoming = approved.filter(r => r.end >= TODAY && r.start <= addDays(TODAY, 21)).sort((a, b) => a.start.localeCompare(b.start)).map(r => { const u = U(r.userId); const now = r.start <= TODAY; return { name: u.name, initials: u.initials, avBg: u.avBg, avFg: u.avFg, range: fmtRange(r.start, r.end), days: workdays(r.start, r.end), when: now ? 'Out now' : 'In ' + diffDays(TODAY, r.start) + 'd', whenBg: now ? 'oklch(0.91 0.17 122)' : '#F3F2EE' }; });
+    v.attention = pending.slice().sort((a, b) => a.start.localeCompare(b.start)).slice(0, 4).map(rowFor);
+    v.attentionEmpty = pending.length === 0;
+
+    // Team calendar
+    const base = new Date(2026, 9 + st.monthOffset, 1);
+    const y = base.getFullYear(), mo = base.getMonth();
+    const n = new Date(y, mo + 1, 0).getDate();
+    const dayIsos = Array.from({ length: n }, (_, i) => iso(new Date(y, mo, i + 1)));
+    const wkend = s => { const w = parse(s).getDay(); return w === 0 || w === 6; };
+    v.cal = {
+      label: MONL[mo] + ' ' + y, count: team.length,
+      days: dayIsos.map(s => ({ n: parse(s).getDate(), wk: WK[parse(s).getDay()][0], bg: wkend(s) ? '#F3F2EE' : 'transparent', numBg: s === TODAY ? '#17171A' : 'transparent', numFg: s === TODAY ? '#FFFFFF' : (wkend(s) ? '#A6A6AE' : '#17171A') })),
+    };
+    const mStart = dayIsos[0], mEnd = dayIsos[n - 1];
+    let totalOff = 0;
+    const order = isValidator ? team : [U(1), ...team.filter(u => u.id !== 1)];
+    v.cal.rows = order.map(u => {
+      const rs = requests.filter(r => r.userId === u.id && r.status !== 'Rejected' && overlaps(r, mStart, mEnd));
+      const at = s => rs.find(r => r.start <= s && r.end >= s);
+      let off = 0;
+      const cells = dayIsos.map((s, i) => {
+        const r = at(s);
+        if (r && r.status === 'Approved' && !wkend(s)) off++;
+        const prev = i > 0 ? at(dayIsos[i - 1]) : (r && r.start < s ? r : null);
+        const nxt = i < n - 1 ? at(dayIsos[i + 1]) : (r && r.end > s ? r : null);
+        const l = !r || prev !== r, rt = !r || nxt !== r;
+        return {
+          colBg: wkend(s) ? '#F8F7F4' : 'transparent', todayLine: s === TODAY ? '1.5px solid #17171A' : '0',
+          bar: !r ? 'transparent' : r.status === 'Approved' ? '#17171A' : 'repeating-linear-gradient(135deg,oklch(0.75 0.15 75) 0 2px,oklch(0.93 0.07 85) 2px 5px)',
+          radius: `${l ? 6 : 0}px ${rt ? 6 : 0}px ${rt ? 6 : 0}px ${l ? 6 : 0}px`,
+          margin: `0 ${rt ? 2 : 0}px 0 ${l ? 2 : 0}px`,
+          tip: r ? `${u.name} · ${fmtRange(r.start, r.end)} · ${r.status}` : '',
+        };
+      });
+      totalOff += off;
+      return { name: u.id === user.id ? u.name + ' (you)' : u.name, initials: u.initials, avBg: u.avBg, avFg: u.avFg, off: off ? off + ' days off' : '—', rowBg: u.id === user.id ? 'oklch(0.985 0.02 122)' : 'transparent', cells };
+    });
+    v.cal.summary = totalOff + ' approved days this month';
+    v.prevMonth = () => this.setState({ monthOffset: st.monthOffset - 1 });
+    v.nextMonth = () => this.setState({ monthOffset: st.monthOffset + 1 });
+    v.thisMonth = () => this.setState({ monthOffset: 0 });
+    return v;
+  }
+}
+</script>
+</body>
+</html>
