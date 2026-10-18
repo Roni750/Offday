@@ -332,8 +332,8 @@ describe("workspace administration", () => {
 });
 
 describe("holidays", () => {
-	it("are for reviewers, with validated ranges and calendar names", async () => {
-		expect((await api("GET", "/holidays?from=2026-10-01&to=2026-10-31", { token: lina })).status).toBe(403);
+	it("are open to every role, with validated ranges and calendar names", async () => {
+		expect((await api("GET", "/holidays?from=2026-10-01&to=2026-10-31", { token: lina })).status).toBe(200);
 		expect((await api("GET", "/holidays?from=2026-10-31&to=2026-10-01", { token: omar })).status).toBe(400);
 		expect((await api("GET", "/holidays?from=2026-10-01&to=2026-10-31&calendars=pastafarian", { token: omar })).status).toBe(400);
 	});

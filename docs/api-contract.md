@@ -30,7 +30,7 @@ Workspace admins administer **every office of their workspace** (time zone, work
 | Team calendar | ✅ | ✅ | ✅ |
 | See all office requests, approve / reject (not their own) | | ✅ | ✅ |
 | Overview stats | | ✅ | ✅ |
-| Religious holidays next to the team calendar | | ✅ | ✅ |
+| Religious holidays next to the team calendar | ✅ | ✅ | ✅ |
 | Change user roles, office time zone and work week (any office of the workspace) | | | ✅ |
 
 ## Business rules (enforced by the API; the UI mirrors them for UX)
@@ -118,7 +118,7 @@ interface Overview {
 | GET | `/office` | | `{ id, name, timezone, workDays, workspace: { id, name } }` |
 | PUT | `/office/timezone` | `{ timezone }` | same as GET `/office` (WorkspaceAdmin; must be a valid IANA zone, stored in canonical spelling) |
 | PUT | `/office/work-week` | `{ workDays }` | same as GET `/office` (WorkspaceAdmin; 1–7 distinct ISO weekdays) |
-| GET | `/holidays?from=&to=&calendars=` | | `{ calendars: { id, label }[], holidays: Holiday[], unavailable: HolidayCalendarId[] }` (Validator, WorkspaceAdmin; see below) |
+| GET | `/holidays?from=&to=&calendars=` | | `{ calendars: { id, label }[], holidays: Holiday[], unavailable: HolidayCalendarId[] }` (all roles; see below) |
 
 ### Workspace administration (WorkspaceAdmin)
 | Method | Path | Body | Response |

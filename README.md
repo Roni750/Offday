@@ -480,7 +480,7 @@ described in [`docs/api-contract.md`](docs/api-contract.md).
 |---|---|---|
 | `/login` | Sign in | public |
 | `/requests/mine` | My requests (balance, next time off, history) | all |
-| `/team` | Team calendar (with religious holidays for reviewers) | all |
+| `/team` | Team calendar (with religious holidays) | all |
 | `/dashboard` | Overview KPIs and monthly chart | Validator, WorkspaceAdmin |
 | `/requests` | Review queue: filters, pagination, approve / reject | Validator, WorkspaceAdmin |
 | `/admin/users` | Users & roles | WorkspaceAdmin |

@@ -364,7 +364,7 @@ paths:
       tags: [Office]
       x-inputParser: handlers/holidays#parseHolidays
       x-handler: handlers/holidays#listHolidays
-      summary: Religious holidays in a date range, from Google's public holiday calendars (Validator, WorkspaceAdmin)
+      summary: Religious holidays in a date range, from Google's public holiday calendars (all roles)
       parameters:
         - { in: query, name: from, required: true, schema: { type: string, format: date } }
         - { in: query, name: to, required: true, schema: { type: string, format: date } }

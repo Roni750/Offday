@@ -42,9 +42,9 @@ async function load(): Promise<void> {
 // Reload on navigation and after any change to requests made elsewhere in the app.
 watch([month, () => mine.revision, () => review.revision, () => auth.timezone], load, { immediate: true });
 
-// ---- Religious holidays (validators and workspace admins) ---------------------------
+// ---- Religious holidays (all roles) ---------------------------
 
-const selectedCalendars = ref<HolidayCalendarId[]>(auth.canReview ? readHolidayPreference() : []);
+const selectedCalendars = ref<HolidayCalendarId[]>(readHolidayPreference());
 const holidays = ref<Holiday[]>([]);
 const unavailable = ref<HolidayCalendarId[]>([]);
 const loadingHolidays = ref(false);
@@ -59,7 +59,7 @@ function toggleCalendar(id: HolidayCalendarId): void {
 
 async function loadHolidays(): Promise<void> {
   const id = ++holidaySeq;
-  if (!auth.canReview || !selectedCalendars.value.length) {
+  if (!selectedCalendars.value.length) {
     holidays.value = [];
     unavailable.value = [];
     return;
@@ -94,7 +94,7 @@ const unavailableLabels = computed(() => unavailable.value.map((id) => HOLIDAY_C
     </template>
   </PageHeader>
 
-  <fieldset v-if="auth.canReview" class="card flex flex-wrap items-center gap-x-4 gap-y-2.5 px-5 py-3">
+  <fieldset class="card flex flex-wrap items-center gap-x-4 gap-y-2.5 px-5 py-3">
     <legend class="sr-only">Show religious holidays</legend>
     <span class="text-[13px] font-medium" aria-hidden="true">Show holidays</span>
     <label

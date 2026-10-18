@@ -1,6 +1,5 @@
 import { CommonEvent } from "commoneventframework/dist/types/commonEvent";
 import { z } from "zod";
-import { REVIEWER_ROLES } from "../domain/enums";
 import { HOLIDAY_CALENDARS, HOLIDAY_CALENDAR_IDS, HolidayCalendarId, holidayCalendars } from "../holidays/holidayCalendars";
 import { authenticate, getQuery, validate } from "../http/parse";
 import { Authenticated, withActor } from "../http/withActor";
@@ -27,11 +26,10 @@ export const parseHolidays: InputParserFn = (event: CommonEvent) => ({
 	...validate(holidaysQuery, getQuery(event)),
 });
 
-/** Religious holidays to show next to the team calendar (Validator, WorkspaceAdmin). */
+/** Religious holidays to show next to the team calendar (all roles). */
 export const listHolidays = withActor<Authenticated & { from: string; to: string; calendars: HolidayCalendarId[] }>(
 	async ({ from, to, calendars }) => ({
 		calendars: HOLIDAY_CALENDAR_IDS.map((id) => ({ id, label: HOLIDAY_CALENDARS[id].label })),
 		...(await holidayCalendars.between(calendars, from, to)),
 	}),
-	REVIEWER_ROLES,
 );
