@@ -59,6 +59,8 @@ export async function setup(): Promise<void> {
 		cwd: BACKEND_DIR,
 		env,
 		shell: true,
+		// Its own process group on Linux/macOS, so teardown can stop npx, ts-node and the server together.
+		detached: process.platform !== "win32",
 		stdio: ["ignore", log, log],
 	});
 	await waitForHealth();
