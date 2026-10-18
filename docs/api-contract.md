@@ -17,6 +17,7 @@ All bodies are JSON. Protected endpoints need `Authorization: Bearer <token>`.
   | 404 | `NOT_FOUND` | Resource doesn't exist (or isn't visible to the caller) |
   | 409 | `OVERLAP` | Overlaps the caller's Pending/Approved request; `details.conflict` = `{ id, startDate, endDate, status }` |
   | 409 | `INVALID_STATE` | E.g. modifying an approved request, deciding an already-decided one |
+  | 409 | `EMAIL_TAKEN` | Accepting an invite with an email that already has an account; `details.fields.email` |
   | 500 | `INTERNAL` | Generic message, no internals |
 
 ## Roles and tenancy
@@ -32,6 +33,7 @@ Workspace admins administer **every office of their workspace** (time zone, work
 | Overview stats | | ✅ | ✅ |
 | Religious holidays next to the team calendar | ✅ | ✅ | ✅ |
 | Change user roles, office time zone and work week (any office of the workspace) | | | ✅ |
+| Create, list and revoke invite links (any office of the workspace) | | | ✅ |
 
 ## Business rules (enforced by the API; the UI mirrors them for UX)
 
@@ -128,6 +130,59 @@ interface Overview {
 | GET | `/offices/:id/users` | | `UserSummary[]` |
 | PUT | `/offices/:id/timezone` | `{ timezone }` | same as PUT `/office/timezone` |
 | PUT | `/offices/:id/work-week` | `{ workDays }` | same as PUT `/office/work-week` |
+
+### Invitations
+A workspace admin creates an invite **link** for an office of their workspace and shares it however they like (no
+email is sent). The invitee opens `/join/<token>` in the web app, creates their account and is signed in, in that
+office with the link's role.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| POST | `/offices/:id/invitations` | `{ kind, role?, email?, maxUses?, expiresInDays?, label? }` | `201 { invitation: InvitationSummary, token }` (WorkspaceAdmin) |
+| GET | `/offices/:id/invitations` | | `InvitationSummary[]`, newest first, all statuses (WorkspaceAdmin) |
+| DELETE | `/offices/:officeId/invitations/:invitationId` | | `204`, idempotent (WorkspaceAdmin) |
+| POST | `/invitations/preview` | `{ token }` | `InvitationPreview` (public) |
+| POST | `/invitations/accept` | `{ token, name, email, password }` | `201 { token, user: Me }`, same shape as `/auth/login` (public) |
+
+- **Kinds.** `personal`: `email` required, single use. `team`: no email, `maxUses` 1–200 (default 25).
+  `expiresInDays` 1–30 (default 7). `label` ≤ 80 chars, only admins see it. `role` defaults to `Requester`.
+- **Admin links.** `role: "WorkspaceAdmin"` only on a personal link that expires within 72 hours
+  (`expiresInDays` ≤ 3, default 3). Also enforced by a database `CHECK`.
+- **The token is shown once.** Only `sha256(token)` is stored, so `token` is in the create response and nowhere else.
+  A lost link is revoked and replaced. Tokens are 43 base64url characters.
+- **The token travels in the request body**, never in an API URL (it would end up in access logs and caches).
+- **One answer for every unusable link.** Unknown, malformed, revoked, expired, used up, or created by someone who is no
+  longer a workspace admin of that workspace: `404 NOT_FOUND` with the same body, byte for byte:
+  `"This invite link is invalid or has expired. Ask your admin for a new one."`
+- **Accepting** ignores any `Authorization` header. A personal link only accepts its own email (case-insensitive),
+  otherwise `403` "This invite is for a different email address.". An email that already has an account answers
+  `409 EMAIL_TAKEN` "An account already exists for this email. Sign in instead." (users belong to one office).
+  Name 1–120 chars (trimmed); password at least 10 characters, at most 72 bytes in UTF-8 (bcrypt's limit), not the email.
+- **Concurrency.** Accepts of the same link are serialized on the invitation row: a link never goes past `maxUses`.
+- Invitation responses (errors included) carry `Cache-Control: no-store`. Another workspace's office answers `404`.
+
+```ts
+interface InvitationSummary {
+  id: number;
+  kind: "personal" | "team";
+  label: string | null;
+  role: Role;
+  email: string | null;                 // personal links
+  maxUses: number; useCount: number;
+  expiresAt: string; revokedAt: string | null;
+  createdBy: { id: number; name: string } | null;
+  createdAt: string;
+  status: "Active" | "Expired" | "Revoked" | "UsedUp";   // Revoked > UsedUp > Expired
+}
+
+interface InvitationPreview {           // names only, no ids
+  workspace: { name: string };
+  office: { name: string };
+  role: Role;
+  email: string | null;                 // set when the link is for one email
+  expiresAt: string;
+}
+```
 
 ### Holidays
 Source: Google Calendar's public religious-holiday calendars (iCalendar feeds), read by the server and cached for 12h per container.

@@ -26,13 +26,14 @@ overlapping vacations impossible even under concurrent writes.
 6. [Concurrency: why overlaps can't happen](#concurrency-why-overlaps-cant-happen)
 7. [Data model](#data-model)
 8. [Security and tenancy](#security-and-tenancy)
-9. [Errors](#errors)
-10. [Time zones](#time-zones)
-11. [Frontend](#frontend)
-12. [Deployment](#deployment)
-13. [Testing](#testing)
-14. [Project layout](#project-layout)
-15. [Known limitations](#known-limitations)
+9. [Invite links](#invite-links)
+10. [Errors](#errors)
+11. [Time zones](#time-zones)
+12. [Frontend](#frontend)
+13. [Deployment](#deployment)
+14. [Testing](#testing)
+15. [Project layout](#project-layout)
+16. [Known limitations](#known-limitations)
 
 ---
 
@@ -358,6 +359,8 @@ erDiagram
     USER ||--o{ VACATION_REQUEST : submits
     USER |o--o{ VACATION_REQUEST : decides
     OFFICE ||--o{ AUDIT_LOG : records
+    OFFICE ||--o{ INVITATION : "invites into"
+    USER |o--o{ INVITATION : creates
 
     WORKSPACE { int id PK
         string name
@@ -390,6 +393,16 @@ erDiagram
         int entity_id
         jsonb payload
         timestamptz occurred_at }
+    INVITATION { int id PK
+        int office_id FK
+        int created_by FK
+        enum role
+        bytea token_hash "sha256, unique, never selected by default"
+        string email "personal links only"
+        int max_uses
+        int use_count
+        timestamptz expires_at
+        timestamptz revoked_at }
 ```
 
 - The schema is owned by versioned TypeORM migrations (`synchronize: false`), never by the ORM's auto-sync.
@@ -425,6 +438,30 @@ flowchart LR
 
 ---
 
+## Invite links
+
+There is no public sign-up. A workspace admin opens an office (**Office settings → Edit**), creates an invite link
+under **Invite links** and shares it however they like. The invitee opens `/join/<token>`, creates their account and
+lands in that office, signed in, with the link's role. No email is sent.
+
+| | Personal link | Team link |
+|---|---|---|
+| Who can use it | One email address | Anyone with the link |
+| Uses | 1 | 1–200 (default 25) |
+| Expiry | 1–30 days (default 7) | 1–30 days (default 7) |
+| Roles | Requester, Validator, Workspace admin (then 72h max) | Requester, Validator |
+
+- The link is **shown once**. Only `sha256(token)` is stored, so a lost link is revoked and replaced.
+- The token travels in the **request body** (`POST /invitations/preview`, `POST /invitations/accept`), never in an
+  API URL. The join page is served with `Referrer-Policy: no-referrer`, `Cache-Control: no-store` and `noindex`.
+- Every unusable link (unknown, revoked, expired, used up, or its creator is no longer an admin) gets the **same 404**.
+- Accepting locks the invitation row, so concurrent accepts can't go past the use count. An email that already has
+  an account answers `409 EMAIL_TAKEN`.
+- The seed creates no invitation: a known token in a public repo would be a backdoor into the live demo. Sign in as
+  Noa (Workspace admin) to create one. Why it works this way: [decisions.md #14](decisions.md).
+
+---
+
 ## Errors
 
 Every failure, including those raised by the database, has one shape, produced in one place
@@ -441,6 +478,7 @@ Every failure, including those raised by the database, has one shape, produced i
 | 403 | `FORBIDDEN` | Role not allowed |
 | 404 | `NOT_FOUND` | Missing, or not visible to the caller |
 | 409 | `OVERLAP` / `INVALID_STATE` | Overlap (with `details.conflict`), or e.g. deciding an already-decided request |
+| 409 | `EMAIL_TAKEN` | Accepting an invite with an email that already has an account |
 | 500 | `INTERNAL` | Generic message; details are logged server-side, never returned |
 
 Typed `DomainError` subclasses carry the status and code. Constraint violations are translated into the same
@@ -585,15 +623,16 @@ Serverless-specific choices:
 
 ```bash
 cd backend
-npm test            # unit: office time math (DST, work weeks, half days), iCalendar holiday parsing
+npm test            # unit: office time math (DST, work weeks, half days), iCalendar holiday parsing, invite tokens
 npm run test:e2e    # end-to-end: real API + real Postgres
 cd ../frontend
-npm test            # request form validation
+npm test            # request, join and invite-link form validation
 ```
 
 The e2e suite migrates and reseeds a disposable database, starts the API, and exercises it over HTTP: every business
 rule, concurrent duplicate submissions, RBAC for all three roles, role changes applying to existing tokens, office and
-workspace isolation, and the read models. It refuses to run against a non-local database host.
+workspace isolation, the read models, and invite links (identical 404s for every unusable link, concurrent accepts of a
+3-use link, email locks, a demoted creator's links). It refuses to run against a non-local database host.
 
 ---
 
@@ -640,6 +679,7 @@ The reasoning behind every major choice (with alternatives and costs) is in **[d
 |---|---|
 | Notifications are a logging placeholder | Transactional outbox and a delivery worker |
 | Sign-out doesn't revoke the token (privilege changes already apply immediately) | `tokenVersion` column on `users` |
-| No login rate limiting | Throttling per IP and per account |
+| No login or invite rate limiting | Throttling per IP and per account |
+| Invite links are shared by hand | Email delivery through an outbox, then SSO |
 | No live updates for other users | WebSocket API, or polling a lightweight "revision" endpoint |
 | Offset pagination | Keyset pagination if the review queue grows large |
