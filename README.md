@@ -1,8 +1,8 @@
 # Offday
 
 https://offday-vacay.netlify.app
-**Vacation requests without the email thread.** Employees submit time off, validators approve or reject it,
-and workspace admins run their offices' calendars, all scoped to a multi-tenant workspace.
+**Vacation requests without the email thread.** Employees submit time off, alone or together with colleagues,
+validators approve or reject it, and workspace admins run their offices' calendars, all scoped to a multi-tenant workspace.
 
 The backend is the heart of the project: a command/event architecture on AWS Lambda, where every business rule
 is enforced at the layer that can actually see the truth, down to a Postgres exclusion constraint that makes
@@ -27,13 +27,14 @@ overlapping vacations impossible even under concurrent writes.
 7. [Data model](#data-model)
 8. [Security and tenancy](#security-and-tenancy)
 9. [Invite links](#invite-links)
-10. [Errors](#errors)
-11. [Time zones](#time-zones)
-12. [Frontend](#frontend)
-13. [Deployment](#deployment)
-14. [Testing](#testing)
-15. [Project layout](#project-layout)
-16. [Known limitations](#known-limitations)
+10. [Vacation with colleagues](#vacation-with-colleagues)
+11. [Errors](#errors)
+12. [Time zones](#time-zones)
+13. [Frontend](#frontend)
+14. [Deployment](#deployment)
+15. [Testing](#testing)
+16. [Project layout](#project-layout)
+17. [Known limitations](#known-limitations)
 
 ---
 
@@ -208,11 +209,13 @@ queue returns its status counts and `awaitingMyReview` in the same response, so 
 
 | Command | Emits | Who |
 |---|---|---|
-| `CreateVacationRequestCommand` | `VacationRequestCreated` | anyone, for themselves |
-| `UpdateVacationRequestCommand` | `VacationRequestUpdated` | owner, Pending only |
-| `WithdrawVacationRequestCommand` | `VacationRequestWithdrawn` | owner, Pending only |
-| `ApproveVacationRequestCommand` | `VacationRequestApproved` | Validator / WorkspaceAdmin, same office, not own |
+| `CreateVacationRequestCommand` | `VacationRequestCreated` (+ `VacationGroupCreated`, `ColleagueAddedToVacation` for a trip) | anyone, for themselves and up to 9 colleagues of their office |
+| `UpdateVacationRequestCommand` | `VacationRequestUpdated` (one per person of a trip) | owner, Pending only; a trip's organizer only, while all of it is Pending |
+| `WithdrawVacationRequestCommand` | `VacationRequestWithdrawn`, or `ColleagueLeftVacation` | owner, Pending only; `scope=group`: the trip's organizer |
+| `ApproveVacationRequestCommand` | `VacationRequestApproved` | Validator / WorkspaceAdmin, same office, not own, not on the trip |
 | `RejectVacationRequestCommand` | `VacationRequestRejected` | Validator / WorkspaceAdmin, with a comment |
+| `ApproveVacationGroupCommand` | `VacationRequestApproved` per Pending row | Validator / WorkspaceAdmin, same office, not on the trip |
+| `RejectVacationGroupCommand` | `VacationRequestRejected` per Pending row | Validator / WorkspaceAdmin, with a comment, not on the trip |
 | `ChangeUserRoleCommand` | `UserRoleChanged` | WorkspaceAdmin, same workspace, not own role |
 | `UpdateOfficeTimezoneCommand` | `OfficeTimezoneChanged` | WorkspaceAdmin, same workspace |
 | `UpdateOfficeWorkWeekCommand` | `OfficeWorkWeekChanged` | WorkspaceAdmin, same workspace |
@@ -300,6 +303,7 @@ flowchart TB
 | 4 | No requests in the past (start after *office-local* today) | handler (needs the office zone from the DB) |
 | 5 | Rejecting requires a comment | inputParser + `CHECK` |
 | 6 | Only validators decide, within their office, never their own | route role gate + handler |
+| 7 | Trips: colleagues of the same office, at most 9; a colleague's approved time off blocks, pending warns; nobody is approved twice for the same time; a reviewer on the trip decides none of it | inputParser (shape) + handler (office, overlaps, under locks) + `EXCLUDE` constraint (approved) |
 
 The guiding question isn't "can the client tamper with this layer?" (the inputParser runs on the server). It is
 **"does this check rely on a client's claim about server state?"** For example, "approved can't be modified" can't
@@ -313,14 +317,26 @@ The UI mirrors these rules for instant feedback, but the API is always the autho
 
 "No overlapping requests" is a classic race. Two concurrent submissions both run `SELECT … overlapping`, both see
 nothing, and both insert. A row lock can't help, because the conflicting row doesn't exist yet. So the database
-owns the invariant:
+owns the invariant, in two exclusion constraints (split for trips, [decisions.md #15](decisions.md)):
 
 ```sql
-CONSTRAINT vacation_no_overlap EXCLUDE USING gist (
+-- What a person submits alone never overlaps their other requests.
+CONSTRAINT vacation_no_overlap_own EXCLUDE USING gist (
   user_id WITH =,
   tstzrange(start_date, end_date, '[)') WITH &&
-) WHERE (status <> 'Rejected')
+) WHERE (status <> 'Rejected' AND group_id IS NULL)
+
+-- Nobody, trip or not, is ever approved twice for the same time.
+CONSTRAINT vacation_no_overlap_approved EXCLUDE USING gist (
+  user_id WITH =,
+  tstzrange(start_date, end_date, '[)') WITH &&
+) WHERE (status = 'Approved')
 ```
+
+A colleague added to a trip may already have a Pending request then (it only warns), so trip rows aren't covered by the
+first constraint. The requester's own overlap rule for trip rows is checked by the handler under a lock on their user
+row, and every command takes locks in one order (trip, then its requests by id, then users by id), so concurrent trips
+with the same people can't deadlock.
 
 ```mermaid
 sequenceDiagram
@@ -361,6 +377,9 @@ erDiagram
     OFFICE ||--o{ AUDIT_LOG : records
     OFFICE ||--o{ INVITATION : "invites into"
     USER |o--o{ INVITATION : creates
+    OFFICE ||--o{ VACATION_GROUP : "has trips"
+    VACATION_GROUP |o--o{ VACATION_REQUEST : links
+    USER |o--o{ VACATION_GROUP : organizes
 
     WORKSPACE { int id PK
         string name
@@ -384,7 +403,12 @@ erDiagram
         enum status "Pending | Approved | Rejected"
         string comments "rejection comment"
         int decided_by FK
-        timestamptz decided_at }
+        timestamptz decided_at
+        int group_id FK "trip, nullable"
+        int added_by FK "who put them on the trip" }
+    VACATION_GROUP { int id PK
+        int office_id FK
+        int organizer_id FK }
     AUDIT_LOG { int id PK
         int office_id FK
         int actor_id
@@ -462,6 +486,27 @@ lands in that office, signed in, with the link's role. No email is sent.
 
 ---
 
+## Vacation with colleagues
+
+A requester can pick up to **9 colleagues of their office** under **Going with** in the request form. One submit
+creates a Pending request for each person, with the same dates, linked as a trip. Why it works this way:
+[decisions.md #15](decisions.md).
+
+- **Colleagues are added automatically** (their request shows "Added by Lina") and can **leave the trip** while their
+  own request is Pending. Only the organizer changes the dates, for everyone, while nobody has a decision yet; the
+  organizer can withdraw just themselves or cancel the trip for everyone still pending.
+- **Same office only** (a UX decision): one set of dates, one time zone and work week, one review queue.
+- **Overlaps:** a colleague's **approved** time off then blocks the trip (`409`, naming every blocked colleague); a
+  colleague's **pending** request only warns (`201` with `warnings`, shown as a toast). The form shows each teammate's
+  overlapping time off as you pick them. The requester's own overlap rule doesn't change.
+- **Review:** each person is still approved or rejected separately, and validators also get **Approve all** /
+  **Reject all** for a trip. A validator who is on the trip can't decide any of it. Postgres guarantees nobody is
+  approved twice for the same time.
+- The seed has one Pending trip (Julia with Lina and Tom): sign in as Lina to see it in **My requests**, or as Omar
+  to approve it in one click.
+
+---
+
 ## Errors
 
 Every failure, including those raised by the database, has one shape, produced in one place
@@ -518,10 +563,10 @@ described in [`docs/api-contract.md`](docs/api-contract.md).
 | Route | Page | Roles |
 |---|---|---|
 | `/login` | Sign in | public |
-| `/requests/mine` | My requests (balance, next time off, history) | all |
-| `/team` | Team calendar (with religious holidays) | all |
+| `/requests/mine` | My requests (balance, next time off, history, trips with colleagues) | all |
+| `/team` | Team calendar (with religious holidays and trip markers) | all |
 | `/dashboard` | Overview KPIs and monthly chart | Validator, WorkspaceAdmin |
-| `/requests` | Review queue: filters, pagination, approve / reject | Validator, WorkspaceAdmin |
+| `/requests` | Review queue: filters, pagination, approve / reject, approve all / reject all for a trip | Validator, WorkspaceAdmin |
 | `/admin/users` | Users & roles | WorkspaceAdmin |
 | `/admin/office` | Office time zones and work weeks | WorkspaceAdmin |
 
@@ -623,16 +668,19 @@ Serverless-specific choices:
 
 ```bash
 cd backend
-npm test            # unit: office time math (DST, work weeks, half days), iCalendar holiday parsing, invite tokens
+npm test            # unit: office time math (DST, work weeks, half days), iCalendar holiday parsing, invite tokens, period text
 npm run test:e2e    # end-to-end: real API + real Postgres
 cd ../frontend
-npm test            # request, join and invite-link form validation
+npm test            # request (including colleague rules), join and invite-link form validation
 ```
 
 The e2e suite migrates and reseeds a disposable database, starts the API, and exercises it over HTTP: every business
 rule, concurrent duplicate submissions, RBAC for all three roles, role changes applying to existing tokens, office and
-workspace isolation, the read models, and invite links (identical 404s for every unusable link, concurrent accepts of a
-3-use link, email locks, a demoted creator's links). It refuses to run against a non-local database host.
+workspace isolation, the read models, invite links (identical 404s for every unusable link, concurrent accepts of a
+3-use link, email locks, a demoted creator's links), and trips (colleague validation and isolation, approved overlaps
+blocking and pending ones warning, concurrent trips with the same people in either order, never approving two
+overlapping requests, leaving, editing and cancelling a trip, reviewers on the trip, approve all / reject all). It
+refuses to run against a non-local database host.
 
 ---
 
