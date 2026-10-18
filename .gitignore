@@ -8,3 +8,4 @@ dist/
 backend/.env.lambda
 backend/tests/e2e/server.log
 docs/qa-findings.md
+.claude/
