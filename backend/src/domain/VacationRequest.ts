@@ -5,7 +5,8 @@ import type { User } from "./User";
 /**
  * start_date / end_date keep the names from the brief but store full timestamps (timestamptz),
  * so half days are possible. The range is half-open [start, end): touching requests don't overlap.
- * Overlap between a user's non-rejected requests is also enforced by an exclusion constraint.
+ * Overlap is also enforced by exclusion constraints: a user's own non-rejected requests never overlap, and
+ * nobody has two overlapping approved requests, trip rows included (decisions.md #4, #15).
  */
 @Entity({ name: "vacation_requests" })
 export class VacationRequest {
@@ -44,6 +45,18 @@ export class VacationRequest {
 
 	@Column({ type: "timestamptz", name: "decided_at", nullable: true })
 	decidedAt!: Date | null;
+
+	/** The trip this request belongs to, if it was submitted together with colleagues. */
+	@Column({ type: "integer", name: "group_id", nullable: true })
+	groupId!: number | null;
+
+	/** Who created the row when it wasn't the owner (a colleague added them to a trip); null when it's the owner. */
+	@Column({ type: "integer", name: "added_by", nullable: true })
+	addedById!: number | null;
+
+	@ManyToOne("User", { onDelete: "SET NULL", nullable: true })
+	@JoinColumn({ name: "added_by" })
+	addedBy!: User | null;
 
 	@CreateDateColumn({ type: "timestamptz", name: "created_at" })
 	createdAt!: Date;

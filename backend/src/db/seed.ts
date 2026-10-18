@@ -7,6 +7,7 @@ import { Role, VacationStatus } from "../domain/enums";
 import { Workspace } from "../domain/Workspace";
 import { Office } from "../domain/Office";
 import { User } from "../domain/User";
+import { VacationGroup } from "../domain/VacationGroup";
 import { VacationRequest } from "../domain/VacationRequest";
 
 const DEMO_PASSWORD = "demo1234";
@@ -28,7 +29,13 @@ interface SeedRequest {
 	decidedAt?: string;
 }
 
-interface SeedOffice { name: string; timezone: string; workDays?: number[]; reviewer: string; users: SeedUser[]; requests: SeedRequest[] }
+/** A Pending trip: one request per person, created by the organizer. */
+interface SeedTrip { organizer: string; members: string[]; start: string; end: string; reason?: string; createdAt: string }
+
+interface SeedOffice {
+	name: string; timezone: string; workDays?: number[]; reviewer: string;
+	users: SeedUser[]; requests: SeedRequest[]; trips?: SeedTrip[];
+}
 interface SeedWorkspace { name: string; slug: string; offices: SeedOffice[] }
 
 const P = VacationStatus.Pending, A = VacationStatus.Approved, R = VacationStatus.Rejected;
@@ -79,6 +86,10 @@ const WORKSPACES: SeedWorkspace[] = [
 					{ user: "diego", start: "2026-10-05", end: "2026-10-09", status: A, createdAt: "2026-09-10", decidedAt: "2026-09-10" },
 					{ user: "diego", start: "2026-11-09", end: "2026-11-13", status: P, reason: "Ski trip", createdAt: "2026-10-11" },
 				],
+				// Vacation with colleagues (decisions.md #15): Julia added Lina and Tom; Omar can approve all at once.
+				trips: [
+					{ organizer: "julia", members: ["lina", "tom"], start: "2026-12-14", end: "2026-12-17", reason: "Team trip to Eilat", createdAt: "2026-10-16" },
+				],
 			},
 			{
 				name: "Paris", timezone: "Europe/Paris", reviewer: "camille",
@@ -126,7 +137,7 @@ const run = async () => {
 	const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
 
 	await dataSource.transaction(async (tx) => {
-		await tx.query(`TRUNCATE audit_log, invitations, vacation_requests, users, offices, workspaces RESTART IDENTITY CASCADE`);
+		await tx.query(`TRUNCATE audit_log, invitations, vacation_requests, vacation_groups, users, offices, workspaces RESTART IDENTITY CASCADE`);
 
 		for (const ws of WORKSPACES) {
 			const workspace = await tx.save(tx.create(Workspace, { name: ws.name, slug: ws.slug }));
@@ -158,6 +169,23 @@ const run = async () => {
 						decidedAt: decided ? toInstant(r.decidedAt!, "10:00", officeSeed.timezone) : null,
 						createdAt: toInstant(r.createdAt, "09:30", officeSeed.timezone),
 					}));
+				}
+
+				for (const trip of officeSeed.trips ?? []) {
+					const organizer = users.get(trip.organizer)!;
+					const group = await tx.save(tx.create(VacationGroup, { officeId: office.id, organizerId: organizer.id }));
+					for (const key of [trip.organizer, ...trip.members]) {
+						await tx.save(tx.create(VacationRequest, {
+							userId: users.get(key)!.id,
+							startDate: toInstant(trip.start, "09:00", officeSeed.timezone),
+							endDate: toInstant(trip.end, "18:00", officeSeed.timezone),
+							reason: trip.reason ?? null,
+							status: VacationStatus.Pending,
+							groupId: group.id,
+							addedById: key === trip.organizer ? null : organizer.id,
+							createdAt: toInstant(trip.createdAt, "09:30", officeSeed.timezone),
+						}));
+					}
 				}
 			}
 		}

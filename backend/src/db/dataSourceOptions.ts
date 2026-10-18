@@ -7,8 +7,9 @@ import { User } from "../domain/User";
 import { VacationRequest } from "../domain/VacationRequest";
 import { AuditLogEntry } from "../domain/AuditLogEntry";
 import { Invitation } from "../domain/Invitation";
+import { VacationGroup } from "../domain/VacationGroup";
 
-export const ENTITIES = [Workspace, Office, User, VacationRequest, AuditLogEntry, Invitation];
+export const ENTITIES = [Workspace, Office, User, VacationRequest, AuditLogEntry, Invitation, VacationGroup];
 
 /** Reads env at call time: CEF's loadEnv() is async, so process.env isn't ready at import time. */
 export const buildDataSourceOptions = (url = process.env.DATABASE_URL): DataSourceOptions => ({
