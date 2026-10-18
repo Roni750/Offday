@@ -25,7 +25,7 @@ export interface DialogOptions {
   /** Called on Escape; the dialog decides whether it can close (e.g. not while saving). */
   onClose: () => void;
   /** Element to focus on open; defaults to the first focusable element in the panel. */
-  initialFocus?: () => HTMLElement | null | undefined;
+  initialFocus?: () => { focus: () => void } | null | undefined;
 }
 
 export function useDialog(isOpen: Ref<boolean>, panel: Ref<HTMLElement | null>, options: DialogOptions): void {

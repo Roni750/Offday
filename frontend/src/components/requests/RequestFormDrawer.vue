@@ -5,6 +5,8 @@ import { useForm } from 'vee-validate';
 import { type ApiError, toApiError } from '@/api/errors';
 import type { RequestPayload } from '@/api/types';
 import AppButton from '@/components/ui/AppButton.vue';
+import DatePicker from '@/components/ui/DatePicker.vue';
+import TimePicker from '@/components/ui/TimePicker.vue';
 import { useDialog } from '@/composables/useDialog';
 import { useToast } from '@/composables/useToast';
 import { useAuthStore } from '@/stores/auth';
@@ -41,6 +43,7 @@ const { isOpen, editing } = storeToRefs(drawer);
 const zone = computed(() => auth.timezone);
 const today = computed(() => todayIn(zone.value));
 const earliestStart = computed(() => today.value.plus({ days: 1 }));
+const minStart = computed(() => earliestStart.value.toFormat(DATE_FORMAT));
 
 // ---- Form (VeeValidate + the Zod schema that mirrors the API rules) ------------
 
@@ -67,7 +70,9 @@ const [reason, reasonAttrs] = defineField('reason');
 
 /** Errors that the API returned and that don't belong to a field. */
 const generalError = ref<string>();
-const inputs: Partial<Record<RequestFormField, HTMLElement | null>> = {};
+/** Inputs and pickers alike: anything the submit handler can move focus to. */
+type Focusable = { focus: () => void };
+const inputs: Partial<Record<RequestFormField, Focusable | null>> = {};
 
 // Rule 1 and the overlap check compare start and end, so a changed start re-checks a touched end.
 watch([startDate, startTime], () => {
@@ -246,30 +251,25 @@ const endError = computed(() => errors.value.endDate ?? errors.value.endTime);
               <fieldset class="flex flex-col gap-1.5">
                 <legend class="mb-1.5 text-[13px] font-medium">Start</legend>
                 <div class="grid grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] gap-2.5">
-                  <input
-                    :ref="(el) => (inputs.startDate = el as HTMLElement | null)"
+                  <DatePicker
+                    :ref="(el) => (inputs.startDate = el as Focusable | null)"
                     v-model="startDate"
                     v-bind="startDateAttrs"
-                    type="date"
-                    aria-label="Start date"
-                    required
-                    :min="earliestStart.toFormat(DATE_FORMAT)"
-                    class="field-input"
-                    :class="{ 'field-input-error': errors.startDate }"
-                    :aria-invalid="!!errors.startDate"
+                    label="Start date"
+                    :min="minStart"
+                    :work-days="auth.workDays"
+                    :zone="zone"
+                    :range-start="startDate"
+                    :range-end="endDate"
+                    :invalid="!!errors.startDate"
                     :aria-describedby="startError ? 'start-error' : undefined"
                   />
-                  <input
-                    :ref="(el) => (inputs.startTime = el as HTMLElement | null)"
+                  <TimePicker
+                    :ref="(el) => (inputs.startTime = el as Focusable | null)"
                     v-model="startTime"
                     v-bind="startTimeAttrs"
-                    type="time"
-                    step="900"
-                    aria-label="Start time"
-                    required
-                    class="field-input font-mono"
-                    :class="{ 'field-input-error': errors.startTime }"
-                    :aria-invalid="!!errors.startTime"
+                    label="Start time"
+                    :invalid="!!errors.startTime"
                     :aria-describedby="startError ? 'start-error' : undefined"
                   />
                 </div>
@@ -279,30 +279,26 @@ const endError = computed(() => errors.value.endDate ?? errors.value.endTime);
               <fieldset class="flex flex-col gap-1.5">
                 <legend class="mb-1.5 text-[13px] font-medium">End</legend>
                 <div class="grid grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] gap-2.5">
-                  <input
-                    :ref="(el) => (inputs.endDate = el as HTMLElement | null)"
+                  <DatePicker
+                    :ref="(el) => (inputs.endDate = el as Focusable | null)"
                     v-model="endDate"
                     v-bind="endDateAttrs"
-                    type="date"
-                    aria-label="End date"
-                    required
-                    :min="startDate || earliestStart.toFormat(DATE_FORMAT)"
-                    class="field-input"
-                    :class="{ 'field-input-error': errors.endDate }"
-                    :aria-invalid="!!errors.endDate"
+                    label="End date"
+                    :min="startDate || minStart"
+                    :work-days="auth.workDays"
+                    :zone="zone"
+                    :range-start="startDate"
+                    :range-end="endDate"
+                    :invalid="!!errors.endDate"
                     :aria-describedby="endError ? 'end-error' : undefined"
                   />
-                  <input
-                    :ref="(el) => (inputs.endTime = el as HTMLElement | null)"
+                  <TimePicker
+                    :ref="(el) => (inputs.endTime = el as Focusable | null)"
                     v-model="endTime"
                     v-bind="endTimeAttrs"
-                    type="time"
-                    step="900"
-                    aria-label="End time"
-                    required
-                    class="field-input font-mono"
-                    :class="{ 'field-input-error': errors.endTime }"
-                    :aria-invalid="!!errors.endTime"
+                    label="End time"
+                    :min="startDate && startDate === endDate ? startTime : undefined"
+                    :invalid="!!errors.endTime"
                     :aria-describedby="endError ? 'end-error' : undefined"
                   />
                 </div>
@@ -316,7 +312,7 @@ const endError = computed(() => errors.value.endDate ?? errors.value.endTime);
               </label>
               <textarea
                 id="request-reason"
-                :ref="(el) => (inputs.reason = el as HTMLElement | null)"
+                :ref="(el) => (inputs.reason = el as Focusable | null)"
                 v-model="reason"
                 v-bind="reasonAttrs"
                 rows="4"
