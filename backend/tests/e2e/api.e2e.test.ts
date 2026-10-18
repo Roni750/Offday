@@ -673,3 +673,335 @@ describe("invitations", () => {
 		});
 	});
 });
+
+// Runs after everything else: trips add requests to several Tel Aviv people. Each scenario uses its own weeks
+// (40+), clear of the seeded requests and of the earlier scenarios (weeks 16–33).
+describe("group requests", () => {
+	let sara: string, mehdi: string, julia: string, tom: string, aya: string, diego: string;
+	const id: Record<string, number> = {};
+
+	/** Monday 09:00 → Thursday 18:00 of the week N weeks ahead (4 working days in Tel Aviv). */
+	const week = (n: number, overrides: { from?: [1 | 2 | 3 | 4, string]; to?: [1 | 2 | 3 | 4, string] } = {}) => ({
+		startDate: weeksAhead(n, overrides.from?.[0] ?? 1, overrides.from?.[1] ?? "09:00"),
+		endDate: weeksAhead(n, overrides.to?.[0] ?? 4, overrides.to?.[1] ?? "18:00"),
+	});
+	const submit = (token: string, body: Record<string, unknown>) => api("POST", "/requests", { token, body });
+	const trip = (token: string, colleagueIds: number[], n: number, extra: Record<string, unknown> = {}) =>
+		submit(token, { ...week(n), reason: "Team trip", colleagueIds, ...extra });
+	const rowOf = async (token: string, groupId: number) => {
+		const mine = await api("GET", "/requests/mine?pageSize=100", { token });
+		return mine.body.items.find((r: { group: { id: number } | null }) => r.group?.id === groupId);
+	};
+	const requestCount = async () => Number((await sql<{ n: string }>("SELECT count(*) AS n FROM vacation_requests"))[0].n);
+	const groupRows = (groupId: number) =>
+		sql<{ id: number; user_id: number; status: string; start_date: Date; end_date: Date; added_by: number | null }>(
+			"SELECT id, user_id, status, start_date, end_date, added_by FROM vacation_requests WHERE group_id = $1 ORDER BY id", [groupId]);
+
+	beforeAll(async () => {
+		[sara, mehdi, julia, tom, aya, diego] = await Promise.all(
+			["sara@acme.io", "mehdi@acme.io", "julia@acme.io", "tom@acme.io", "aya@acme.io", "diego@acme.io"].map(login),
+		);
+		const users = (await api("GET", `/team/calendar?from=${encodeURIComponent(daysFromNow(1, "00:00"))}&to=${encodeURIComponent(daysFromNow(2, "00:00"))}`, { token: lina })).body.users;
+		for (const u of users as { id: number; email: string }[]) id[u.email.split("@")[0]] = u.id;
+		for (const [key, token] of Object.entries({ camille, ethan })) id[key] = (await api("GET", "/me", { token })).body.id;
+	});
+
+	let firstTrip: number;
+
+	it("creates one Pending row per person, with the same dates, linked by one group", async () => {
+		const res = await trip(sara, [id.mehdi, id.diego], 40);
+		expect(res.status).toBe(201);
+		expect(res.body).toMatchObject({ status: "Pending", user: { id: id.sara }, addedBy: null, warnings: [], reason: "Team trip" });
+		expect(res.body.group).toMatchObject({ organizer: { id: id.sara, name: "Sara Kim" } });
+		// Organizer first, then by name.
+		expect(res.body.group.members.map((m: { name: string }) => m.name)).toEqual(["Sara Kim", "Diego Ruiz", "Mehdi Alaoui"]);
+		expect(res.body.group.members.every((m: { status: string }) => m.status === "Pending")).toBe(true);
+		firstTrip = res.body.group.id;
+
+		const rows = await groupRows(firstTrip);
+		expect(rows).toHaveLength(3);
+		expect(new Set(rows.map((r) => `${r.start_date.toISOString()}|${r.end_date.toISOString()}`)).size).toBe(1);
+		expect(rows.filter((r) => r.added_by === id.sara).map((r) => r.user_id).sort()).toEqual([id.mehdi, id.diego].sort());
+
+		const mehdis = await rowOf(mehdi, firstTrip);
+		expect(mehdis).toMatchObject({ addedBy: { id: id.sara, name: "Sara Kim" }, startDate: res.body.startDate, endDate: res.body.endDate, days: res.body.days, reason: "Team trip" });
+		expect(res.body.days).toBe(4);
+
+		const audit = await sql<{ event_type: string }>("SELECT event_type FROM audit_log WHERE (entity_type = 'VacationGroup' AND entity_id = $1) OR (entity_type = 'VacationRequest' AND entity_id = ANY($2)) ORDER BY id",
+			[firstTrip, rows.map((r) => r.id)]);
+		const types = audit.map((a) => a.event_type);
+		expect(types.filter((t) => t === "VacationGroupCreated")).toHaveLength(1);
+		expect(types.filter((t) => t === "VacationRequestCreated")).toHaveLength(3);
+		expect(types.filter((t) => t === "ColleagueAddedToVacation")).toHaveLength(2);
+	});
+
+	it("validates colleagueIds at the front door (400 on colleagueIds)", async () => {
+		const bad = [[id.mehdi, id.mehdi], [id.sara], Array.from({ length: 10 }, (_, i) => i + 1), [1.5], ["7"], [0], "everyone"];
+		for (const colleagueIds of bad) {
+			const res = await trip(sara, colleagueIds as number[], 39);
+			expect(res.status, JSON.stringify(colleagueIds)).toBe(400);
+			expect(res.body.error.details.fields.colleagueIds).toBeTypeOf("string");
+		}
+		expect((await trip(sara, [id.mehdi, id.mehdi], 39)).body.error.details.fields.colleagueIds).toMatch(/only be added once/);
+		expect((await trip(sara, [id.sara], 39)).body.error.details.fields.colleagueIds).toMatch(/don't add yourself/);
+		expect((await trip(sara, Array.from({ length: 10 }, (_, i) => i + 1), 39)).body.error.details.fields.colleagueIds).toMatch(/up to 9/);
+	});
+
+	it("answers an unknown user, another office and another workspace with the same 400, creating nothing", async () => {
+		const before = await requestCount();
+		const responses = await Promise.all([[id.mehdi, 999_999], [id.camille], [id.ethan]].map((ids) => trip(sara, ids, 39)));
+		for (const res of responses) expect(res.status).toBe(400);
+		expect(new Set(responses.map((r) => r.text)).size).toBe(1);
+		expect(responses[0].body.error.details.fields).toEqual({ colleagueIds: expect.any(String) });
+		expect(await requestCount()).toBe(before);
+	});
+
+	it("refuses colleagues with approved time off in the range (409 naming each of them), atomically", async () => {
+		const toms = await submit(tom, week(41, { to: [2, "18:00"] }));
+		expect((await api("POST", `/requests/${toms.body.id}/approve`, { token: omar })).status).toBe(200);
+		const before = await requestCount();
+
+		const one = await trip(sara, [id.tom, id.mehdi], 41);
+		expect(one.status).toBe(409);
+		expect(one.body.error.code).toBe("OVERLAP");
+		expect(one.body.error.message).toMatch(/^Tom Becker can't join from .+: they already have approved time off .+\.$/);
+		expect(one.body.error.details.conflicts).toEqual([
+			{ userId: id.tom, name: "Tom Becker", conflict: { id: toms.body.id, startDate: toms.body.startDate, endDate: toms.body.endDate, status: "Approved" } },
+		]);
+		expect(await requestCount()).toBe(before);
+
+		const ayas = await submit(aya, week(41, { from: [3, "09:00"] }));
+		expect((await api("POST", `/requests/${ayas.body.id}/approve`, { token: omar })).status).toBe(200);
+		const both = await trip(sara, [id.tom, id.aya], 41);
+		expect(both.status).toBe(409);
+		expect(both.body.error.details.conflicts.map((c: { name: string }) => c.name)).toEqual(["Tom Becker", "Aya Tanaka"]);
+		expect(both.body.error.message).toMatch(/Tom Becker \(.+\) and Aya Tanaka \(.+\) can't join/);
+		// Only Aya's own request was added.
+		expect(await requestCount()).toBe(before + 1);
+	});
+
+	it("creates the trip when a colleague only has a pending overlap, and warns about them", async () => {
+		const diegos = await submit(diego, week(42, { from: [2, "09:00"], to: [2, "18:00"] }));
+		expect(diegos.status).toBe(201);
+		const res = await trip(sara, [id.diego], 42);
+		expect(res.status).toBe(201);
+		expect(res.body.warnings).toEqual([
+			{ userId: id.diego, name: "Diego Ruiz", conflict: { id: diegos.body.id, startDate: diegos.body.startDate, endDate: diegos.body.endDate, status: "Pending" } },
+		]);
+		const overlapping = await sql("SELECT id FROM vacation_requests WHERE user_id = $1 AND start_date < $3 AND end_date > $2",
+			[id.diego, res.body.startDate, res.body.endDate]);
+		expect(overlapping).toHaveLength(2);
+	});
+
+	let thirdTrip: number;
+
+	it("never blocks on rejected or touching requests", async () => {
+		const mehdis = await submit(mehdi, week(43, { to: [2, "18:00"] }));
+		expect((await api("POST", `/requests/${mehdis.body.id}/reject`, { token: omar, body: { comment: "Release week" } })).status).toBe(200);
+		const ayas = await submit(aya, week(43, { from: [4, "13:00"] }));
+		expect((await api("POST", `/requests/${ayas.body.id}/approve`, { token: omar })).status).toBe(200);
+
+		// Monday 09:00 → Thursday 13:00 touches Aya's Thursday afternoon without overlapping it.
+		const res = await trip(sara, [id.mehdi, id.aya], 43, { endDate: weeksAhead(43, 4, "13:00") });
+		expect(res.status).toBe(201);
+		expect(res.body.warnings).toEqual([]);
+		thirdTrip = res.body.group.id;
+	});
+
+	it("keeps the requester's own rule: their own pending overlap is still a 409 with details.conflict", async () => {
+		for (const body of [{ ...week(40), colleagueIds: [id.aya] }, week(40, { from: [2, "09:00"], to: [2, "12:00"] })]) {
+			const res = await submit(sara, body);
+			expect(res.status).toBe(409);
+			expect(res.body.error.code).toBe("OVERLAP");
+			expect(res.body.error.details.conflict).toMatchObject({ status: "Pending" });
+			expect(res.body.error.details.conflicts).toBeUndefined();
+		}
+		// A colleague's trip row is their own request too: Mehdi can't book over it alone.
+		expect((await submit(mehdi, week(40, { to: [1, "18:00"] }))).status).toBe(409);
+	});
+
+	let parallelA: number, parallelB: number;
+
+	it("runs concurrent trips with the same colleagues, in either id order, without errors or deadlocks", async () => {
+		const [a, b] = await Promise.all([trip(sara, [id.mehdi, id.diego], 44), trip(aya, [id.diego, id.mehdi], 44)]);
+		expect([a.status, b.status]).toEqual([201, 201]);
+		parallelA = a.body.group.id;
+		parallelB = b.body.group.id;
+
+		// Each organizer is the other's colleague: the second one to get the locks sees the first one's rows.
+		const crossed = await Promise.all([trip(julia, [id.tom], 45), trip(tom, [id.julia], 45)]);
+		expect(crossed.map((r) => r.status).sort()).toEqual([201, 409]);
+		expect(crossed.find((r) => r.status === 409)!.body.error.details.conflict).toBeDefined();
+	});
+
+	it("never approves two overlapping requests of one person (409 on the second)", async () => {
+		const first = (await groupRows(parallelA)).find((r) => r.user_id === id.mehdi)!;
+		const second = (await groupRows(parallelB)).find((r) => r.user_id === id.mehdi)!;
+		expect((await api("POST", `/requests/${first.id}/approve`, { token: noa })).status).toBe(200);
+		const res = await api("POST", `/requests/${second.id}/approve`, { token: noa });
+		expect(res.status).toBe(409);
+		expect(res.body.error).toMatchObject({ code: "OVERLAP", message: "Mehdi Alaoui already has approved time off that overlaps this request" });
+		expect(res.body.error.details.conflict.id).toBe(first.id);
+		// The database refuses it too, whatever code path tries.
+		await expect(sql("UPDATE vacation_requests SET status = 'Approved', decided_at = now() WHERE id = $1", [second.id]))
+			.rejects.toThrow(/vacation_no_overlap_approved/);
+	});
+
+	it("lets only the organizer change the dates", async () => {
+		const mehdis = await rowOf(mehdi, firstTrip);
+		const res = await api("PUT", `/requests/${mehdis.id}`, { token: mehdi, body: week(46) });
+		expect(res.status).toBe(409);
+		expect(res.body.error).toMatchObject({
+			code: "INVALID_STATE",
+			message: "The trip's dates are set by Sara Kim. Leave the trip to request your own dates.",
+		});
+	});
+
+	it("moves everyone's dates when the organizer edits, re-running the colleague checks", async () => {
+		const saras = await rowOf(sara, firstTrip);
+
+		const mehdisApproved = await submit(mehdi, week(47, { from: [3, "09:00"] }));
+		await api("POST", `/requests/${mehdisApproved.body.id}/approve`, { token: omar });
+		const blocked = await api("PUT", `/requests/${saras.id}`, { token: sara, body: week(47) });
+		expect(blocked.status).toBe(409);
+		expect(blocked.body.error.details.conflicts.map((c: { userId: number }) => c.userId)).toEqual([id.mehdi]);
+
+		const diegosPending = await submit(diego, week(46, { from: [2, "09:00"], to: [2, "13:00"] }));
+		const res = await api("PUT", `/requests/${saras.id}`, { token: sara, body: { ...week(46), reason: "Moved trip" } });
+		expect(res.status).toBe(200);
+		expect(res.body.warnings).toEqual([expect.objectContaining({ userId: id.diego, conflict: expect.objectContaining({ id: diegosPending.body.id }) })]);
+		const rows = await groupRows(firstTrip);
+		expect(rows.every((r) => r.start_date.toISOString() === res.body.startDate && r.end_date.toISOString() === res.body.endDate)).toBe(true);
+		expect((await rowOf(mehdi, firstTrip)).reason).toBe("Moved trip");
+	});
+
+	it("lets a colleague leave the trip, removing only their row", async () => {
+		const diegos = await rowOf(diego, firstTrip);
+		expect((await api("DELETE", `/requests/${diegos.id}`, { token: diego })).status).toBe(204);
+		expect((await groupRows(firstTrip)).map((r) => r.user_id).sort()).toEqual([id.sara, id.mehdi].sort());
+		const saras = await rowOf(sara, firstTrip);
+		expect(saras.group.members.map((m: { name: string }) => m.name)).toEqual(["Sara Kim", "Mehdi Alaoui"]);
+		expect(await sql("SELECT 1 FROM audit_log WHERE event_type = 'ColleagueLeftVacation' AND entity_id = $1", [diegos.id])).toHaveLength(1);
+	});
+
+	it("lets the organizer cancel for everyone still pending (scope=group); decided rows stay", async () => {
+		const res = await trip(julia, [id.aya, id.diego], 48);
+		const groupId = res.body.group.id;
+		const ayas = await rowOf(aya, groupId);
+		expect((await api("DELETE", `/requests/${ayas.id}?scope=group`, { token: aya })).status).toBe(403);
+		expect((await api("DELETE", `/requests/${res.body.id}?scope=everyone`, { token: julia })).status).toBe(400);
+
+		expect((await api("POST", `/requests/${ayas.id}/approve`, { token: omar })).status).toBe(200);
+		expect((await api("DELETE", `/requests/${res.body.id}?scope=group`, { token: julia })).status).toBe(204);
+		const left = await groupRows(groupId);
+		expect(left.map((r) => [r.user_id, r.status])).toEqual([[id.aya, "Approved"]]);
+		expect((await api("DELETE", `/requests/${ayas.id}?scope=group`, { token: julia })).status).toBe(404);
+
+		// The last row gone, the group goes too.
+		const solo = await trip(julia, [id.diego], 49);
+		expect((await api("DELETE", `/requests/${solo.body.id}?scope=group`, { token: julia })).status).toBe(204);
+		expect(await sql("SELECT 1 FROM vacation_groups WHERE id = $1", [solo.body.group.id])).toHaveLength(0);
+	});
+
+	it("freezes the dates once anyone on the trip has a decision", async () => {
+		const mehdis = (await groupRows(thirdTrip)).find((r) => r.user_id === id.mehdi)!;
+		expect((await api("POST", `/requests/${mehdis.id}/approve`, { token: omar })).status).toBe(200);
+		const saras = await rowOf(sara, thirdTrip);
+		const res = await api("PUT", `/requests/${saras.id}`, { token: sara, body: week(50) });
+		expect(res.status).toBe(409);
+		expect(res.body.error.code).toBe("INVALID_STATE");
+	});
+
+	it("keeps a reviewer who is on the trip from deciding any of it; another reviewer can", async () => {
+		const res = await trip(lina, [id.omar, id.tom], 50);
+		expect(res.status).toBe(201);
+		const groupId = res.body.group.id;
+		const rows = await groupRows(groupId);
+		const linas = rows.find((r) => r.user_id === linaId)!;
+		const toms = rows.find((r) => r.user_id === id.tom)!;
+
+		expect((await api("POST", `/requests/${linas.id}/approve`, { token: omar })).status).toBe(403);
+		const rejected = await api("POST", `/requests/${toms.id}/reject`, { token: omar, body: { comment: "No" } });
+		expect(rejected.status).toBe(403);
+		expect(rejected.body.error.message).toMatch(/on this trip/);
+		expect((await api("POST", `/groups/${groupId}/approve`, { token: omar })).status).toBe(403);
+		expect((await api("POST", `/groups/${groupId}/reject`, { token: omar, body: { comment: "No" } })).status).toBe(403);
+		expect((await api("POST", `/groups/${groupId}/approve`, { token: lina })).status).toBe(403);
+		expect((await api("POST", `/groups/${groupId}/approve`, { token: camille })).status).toBe(404);
+
+		expect((await api("POST", `/requests/${toms.id}/approve`, { token: noa })).status).toBe(200);
+		const all = await api("POST", `/groups/${groupId}/approve`, { token: noa });
+		expect(all.status).toBe(200);
+		// Only the rows still pending: Lina's and Omar's.
+		expect(all.body.map((r: { user: { id: number } }) => r.user.id).sort()).toEqual([linaId, id.omar].sort());
+		expect(all.body.every((r: { status: string; decidedBy: { name: string } }) => r.status === "Approved" && r.decidedBy.name === "Noa Levi")).toBe(true);
+		expect(all.body[0].group.members.every((m: { status: string }) => m.status === "Approved")).toBe(true);
+
+		const again = await api("POST", `/groups/${groupId}/approve`, { token: noa });
+		expect(again.status).toBe(409);
+		expect(again.body.error.code).toBe("INVALID_STATE");
+	});
+
+	it("rejects all pending rows of a trip with one required comment", async () => {
+		const res = await trip(aya, [id.diego, id.julia], 51);
+		const groupId = res.body.group.id;
+		const julias = (await groupRows(groupId)).find((r) => r.user_id === id.julia)!;
+		expect((await api("POST", `/requests/${julias.id}/approve`, { token: omar })).status).toBe(200);
+
+		expect((await api("POST", `/groups/${groupId}/reject`, { token: omar, body: { comment: "  " } })).status).toBe(400);
+		expect((await api("POST", `/groups/${groupId}/reject`, { token: omar })).status).toBe(400);
+		const rejected = await api("POST", `/groups/${groupId}/reject`, { token: omar, body: { comment: "Quarter close" } });
+		expect(rejected.status).toBe(200);
+		expect(rejected.body).toHaveLength(2);
+		expect(rejected.body.every((r: { status: string; comments: string }) => r.status === "Rejected" && r.comments === "Quarter close")).toBe(true);
+		expect((await groupRows(groupId)).find((r) => r.user_id === id.julia)!.status).toBe("Approved");
+		const events = await sql<{ payload: { groupId: number } }>("SELECT payload FROM audit_log WHERE event_type = 'VacationRequestRejected' AND entity_id = ANY($1)",
+			[rejected.body.map((r: { id: number }) => r.id)]);
+		expect(events.map((e) => e.payload.groupId)).toEqual([groupId, groupId]);
+
+		expect((await api("POST", `/groups/${groupId}/reject`, { token: omar, body: { comment: "Again" } })).status).toBe(409);
+	});
+
+	it("approves all or nobody", async () => {
+		const mehdis = await submit(mehdi, week(52, { to: [1, "18:00"] }));
+		const res = await trip(tom, [id.mehdi, id.diego], 52);
+		expect(res.status).toBe(201);
+		expect(res.body.warnings.map((w: { userId: number }) => w.userId)).toEqual([id.mehdi]);
+		await api("POST", `/requests/${mehdis.body.id}/approve`, { token: omar });
+
+		const all = await api("POST", `/groups/${res.body.group.id}/approve`, { token: omar });
+		expect(all.status).toBe(409);
+		expect(all.body.error.code).toBe("OVERLAP");
+		expect(all.body.error.details.conflicts.map((c: { userId: number }) => c.userId)).toEqual([id.mehdi]);
+		expect((await groupRows(res.body.group.id)).every((r) => r.status === "Pending")).toBe(true);
+	});
+
+	it("shows trips in the review queue and the team calendar, members loaded per page", async () => {
+		const queue = await api("GET", `/requests?userId=${id.aya}&pageSize=100`, { token: noa });
+		const tripRow = queue.body.items.find((r: { group: { id: number } | null }) => r.group?.id === thirdTrip);
+		expect(tripRow.group).toMatchObject({ organizer: { name: "Sara Kim" } });
+		expect(tripRow.group.members).toHaveLength(3);
+		expect(tripRow.addedBy).toEqual({ id: id.sara, name: "Sara Kim" });
+
+		const from = encodeURIComponent(weeksAhead(43, 1, "00:00"));
+		const to = encodeURIComponent(weeksAhead(43, 6, "00:00"));
+		const calendar = await api("GET", `/team/calendar?from=${from}&to=${to}`, { token: lina });
+		const onCalendar = calendar.body.requests.filter((r: { group: { id: number } | null }) => r.group?.id === thirdTrip);
+		expect(onCalendar).toHaveLength(3);
+		expect(onCalendar[0].group.members.map((m: { userId: number }) => m.userId).sort()).toEqual([id.sara, id.mehdi, id.aya].sort());
+
+		// The seeded trip: Julia added Lina and Tom.
+		const linas = (await api("GET", "/requests/mine?pageSize=100", { token: lina })).body.items
+			.find((r: { addedBy: { name: string } | null }) => r.addedBy?.name === "Julia Novak");
+		expect(linas.group.members.map((m: { name: string }) => m.name)).toEqual(["Julia Novak", "Lina Haddad", "Tom Becker"]);
+	});
+
+	it("leaves a request made alone exactly as before: no group, no addedBy, no warnings", async () => {
+		const res = await submit(aya, week(53, { to: [1, "18:00"] }));
+		expect(res.status).toBe(201);
+		expect(res.body).toMatchObject({ group: null, addedBy: null, warnings: [] });
+		const edited = await api("PUT", `/requests/${res.body.id}`, { token: aya, body: week(53, { to: [2, "18:00"] }) });
+		expect(edited.body).toMatchObject({ group: null, addedBy: null, warnings: [] });
+		expect((await api("DELETE", `/requests/${res.body.id}?scope=group`, { token: aya })).status).toBe(204);
+	});
+});
