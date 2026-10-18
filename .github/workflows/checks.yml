@@ -1,0 +1,122 @@
+# Typechecks, tests and builds every push and pull request.
+# On main, when something that runs on the Lambda changed, it then calls the "Deploy API" workflow,
+# so the API is only ever deployed from a commit whose checks passed. The frontend is built and published by Netlify.
+name: Checks
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch cancels the checks of an older one. Never on main: a run there may be deploying.
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      api: ${{ steps.filter.outputs.api }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - '.github/workflows/checks.yml'
+            frontend:
+              - 'frontend/**'
+              - '.github/workflows/checks.yml'
+            # What runs on the Lambda or changes the database. Tests, docs and env examples don't redeploy.
+            api:
+              - 'backend/src/**'
+              - 'backend/package.json'
+              - 'backend/package-lock.json'
+              - 'backend/tsconfig.json'
+              - 'backend/scripts/deploy.mjs'
+              - 'backend/certs/**'
+              - '.github/workflows/deploy-api.yml'
+
+  backend:
+    name: Backend (typecheck, unit, e2e)
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      # Same database as docker-compose.yml, on the port the e2e suite expects by default.
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: offday
+          POSTGRES_PASSWORD: offday
+          POSTGRES_DB: offday
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U offday"
+          --health-interval 2s
+          --health-retries 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run test:e2e
+      - name: Upload the API log of a failed e2e run
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: e2e-server-log
+          path: backend/tests/e2e/server.log
+
+  frontend:
+    name: Frontend (typecheck, unit, build)
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm test
+      # `build` runs vue-tsc first, so it also typechecks.
+      - run: npm run build
+
+  deploy-api:
+    name: Deploy API
+    needs: [changes, backend, frontend]
+    # Skipped jobs (e.g. frontend when only the backend changed) don't block; failed ones do.
+    if: >-
+      always() && !cancelled()
+      && github.event_name == 'push' && github.ref == 'refs/heads/main'
+      && needs.changes.outputs.api == 'true'
+      && needs.backend.result == 'success'
+      && (needs.frontend.result == 'success' || needs.frontend.result == 'skipped')
+    uses: ./.github/workflows/deploy-api.yml
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
