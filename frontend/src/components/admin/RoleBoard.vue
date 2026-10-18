@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
 import type { Role, UserSummary } from '@/api/types';
+import SelectMenu from '@/components/ui/SelectMenu.vue';
 import UserAvatar from '@/components/ui/UserAvatar.vue';
 import { ALL_ROLES, roleLabel } from '@/utils/roles';
 
 /**
  * The people of an office grouped by role. Dragging a card onto another group proposes a role change;
- * each card also has a "Move to" menu, for keyboards and touch screens. The parent decides and saves.
+ * each card also has a "Move to" menu, for keyboards and screen readers. The parent decides and saves.
  */
 const props = defineProps<{
   users: UserSummary[];
@@ -28,57 +29,148 @@ const byRole = computed(() =>
   Object.fromEntries(ALL_ROLES.map((role) => [role, props.users.filter((u) => u.role === role)])) as Record<Role, UserSummary[]>,
 );
 
-const dragging = ref<UserSummary | null>(null);
-const overRole = ref<Role | null>(null);
-
 const locked = (user: UserSummary) => user.id === props.meId || props.savingId !== null;
 
-function onDragStart(event: DragEvent, user: UserSummary): void {
-  if (locked(user)) {
-    event.preventDefault();
-    return;
-  }
-  dragging.value = user;
-  if (event.dataTransfer) {
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('text/plain', String(user.id));
-  }
+// ---- Dragging ----------------------------------------------------------------------
+// Pointer events instead of the HTML drag-and-drop API: the card really follows the pointer, it works
+// with touch (from the ⠿ handle), and Chrome doesn't cancel the drag when the board restyles itself.
+
+/** Pixels the pointer must move before a press becomes a drag, so clicks stay clicks. */
+const DRAG_THRESHOLD = 4;
+/** Distance from the scroll area's top or bottom edge where dragging scrolls it. */
+const SCROLL_EDGE = 56;
+
+interface Drag {
+  user: UserSummary;
+  pointerId: number;
+  source: HTMLElement;
+  startX: number;
+  startY: number;
+  x: number;
+  y: number;
+  offsetX: number;
+  offsetY: number;
+  width: number;
+  active: boolean;
 }
 
-function onDragEnd(): void {
-  dragging.value = null;
-  overRole.value = null;
-}
+const drag = ref<Drag | null>(null);
+const dragging = computed(() => (drag.value?.active ? drag.value.user : null));
+const overRole = ref<Role | null>(null);
+const zones = new Map<Role, HTMLElement>();
+let scrollFrame = 0;
 
 const canDropOn = (role: Role) => !!dragging.value && dragging.value.role !== role;
 
-function onDragOver(event: DragEvent, role: Role): void {
-  if (!canDropOn(role)) return;
-  // Accepting the drop requires cancelling dragover.
+function setZone(role: Role, el: unknown): void {
+  if (el instanceof HTMLElement) zones.set(role, el);
+  else zones.delete(role);
+}
+
+function onPointerDown(event: PointerEvent, user: UserSummary): void {
+  if (event.button !== 0 || locked(user) || drag.value) return;
+  const target = event.target as HTMLElement;
+  // The "Move to" menu keeps working as a normal control.
+  if (target.closest('select, button, a, input')) return;
+  // On touch, only the handle drags, so swiping over the cards still scrolls the drawer.
+  if (event.pointerType === 'touch' && !target.closest('[data-drag-handle]')) return;
+
+  const source = event.currentTarget as HTMLElement;
+  const rect = source.getBoundingClientRect();
+  drag.value = {
+    user,
+    pointerId: event.pointerId,
+    source,
+    startX: event.clientX,
+    startY: event.clientY,
+    x: event.clientX,
+    y: event.clientY,
+    offsetX: event.clientX - rect.left,
+    offsetY: event.clientY - rect.top,
+    width: rect.width,
+    active: false,
+  };
+  window.addEventListener('pointermove', onPointerMove);
+  window.addEventListener('pointerup', onPointerUp);
+  window.addEventListener('pointercancel', cancelDrag);
+  window.addEventListener('keydown', onKeydown, true);
+}
+
+function onPointerMove(event: PointerEvent): void {
+  const d = drag.value;
+  if (!d || event.pointerId !== d.pointerId) return;
+  d.x = event.clientX;
+  d.y = event.clientY;
+  if (!d.active) {
+    if (Math.hypot(d.x - d.startX, d.y - d.startY) < DRAG_THRESHOLD) return;
+    d.active = true;
+    document.documentElement.classList.add('is-dragging');
+    autoScroll();
+  }
   event.preventDefault();
-  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-  overRole.value = role;
+  overRole.value = zoneAt(d.x, d.y);
 }
 
-function onDragLeave(event: DragEvent, role: Role): void {
-  // Moving between children of the zone fires dragleave too; only leaving the zone itself counts.
-  const next = event.relatedTarget as Node | null;
-  if (overRole.value === role && !(event.currentTarget as HTMLElement).contains(next)) overRole.value = null;
+function zoneAt(x: number, y: number): Role | null {
+  for (const [role, el] of zones) {
+    const r = el.getBoundingClientRect();
+    if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return canDropOn(role) ? role : null;
+  }
+  return null;
 }
 
-function onDrop(role: Role): void {
-  const user = dragging.value;
-  onDragEnd();
-  if (user && user.role !== role) emit('move', user, role);
+/** While dragging near the top or bottom of the drawer's scroll area, scroll it toward the pointer. */
+function autoScroll(): void {
+  const d = drag.value;
+  if (!d?.active) return;
+  const scroller = d.source.closest<HTMLElement>('.overflow-auto');
+  if (scroller) {
+    const r = scroller.getBoundingClientRect();
+    const speed =
+      d.y < r.top + SCROLL_EDGE ? d.y - (r.top + SCROLL_EDGE) : d.y > r.bottom - SCROLL_EDGE ? d.y - (r.bottom - SCROLL_EDGE) : 0;
+    if (speed) {
+      scroller.scrollTop += Math.max(-18, Math.min(18, speed / 3));
+      overRole.value = zoneAt(d.x, d.y);
+    }
+  }
+  scrollFrame = requestAnimationFrame(autoScroll);
 }
 
-function onMenu(user: UserSummary, event: Event): void {
-  const select = event.target as HTMLSelectElement;
-  const role = select.value as Role;
-  // The menu is a trigger, not a field: it always shows "Move to…" again.
-  select.value = '';
+function onPointerUp(event: PointerEvent): void {
+  const d = drag.value;
+  if (!d || event.pointerId !== d.pointerId) return;
+  const role = d.active ? zoneAt(event.clientX, event.clientY) : null;
+  const user = d.user;
+  cancelDrag();
   if (role) emit('move', user, role);
 }
+
+function onKeydown(event: KeyboardEvent): void {
+  if (event.key !== 'Escape' || !drag.value?.active) return;
+  // Escape cancels only the drag; it mustn't also close the drawer.
+  event.preventDefault();
+  event.stopPropagation();
+  cancelDrag();
+}
+
+function cancelDrag(): void {
+  cancelAnimationFrame(scrollFrame);
+  window.removeEventListener('pointermove', onPointerMove);
+  window.removeEventListener('pointerup', onPointerUp);
+  window.removeEventListener('pointercancel', cancelDrag);
+  window.removeEventListener('keydown', onKeydown, true);
+  document.documentElement.classList.remove('is-dragging');
+  drag.value = null;
+  overRole.value = null;
+}
+
+onBeforeUnmount(cancelDrag);
+
+const ghostStyle = computed(() => {
+  const d = drag.value;
+  if (!d) return {};
+  return { width: `${d.width}px`, transform: `translate(${d.x - d.offsetX}px, ${d.y - d.offsetY}px) rotate(1.5deg)` };
+});
 </script>
 
 <template>
@@ -86,6 +178,7 @@ function onMenu(user: UserSummary, event: Event): void {
     <section
       v-for="group in GROUPS"
       :key="group.role"
+      :ref="(el) => setZone(group.role, el)"
       :aria-label="group.title"
       class="flex min-h-[132px] flex-col gap-2 rounded-xl border-[1.5px] p-2.5 transition-colors"
       :class="[
@@ -96,9 +189,6 @@ function onMenu(user: UserSummary, event: Event): void {
             ? 'border-dashed border-ink-3 bg-surface-subtle'
             : 'border-line-divider bg-surface-subtle',
       ]"
-      @dragover="onDragOver($event, group.role)"
-      @dragleave="onDragLeave($event, group.role)"
-      @drop.prevent="onDrop(group.role)"
     >
       <header class="flex items-baseline justify-between gap-2 px-1">
         <h4 class="text-[13px] font-semibold">
@@ -115,18 +205,21 @@ function onMenu(user: UserSummary, event: Event): void {
         <li
           v-for="user in byRole[group.role]"
           :key="user.id"
-          :draggable="!locked(user)"
-          class="flex items-center gap-2.5 rounded-control border border-line bg-surface px-2.5 py-2 transition-opacity"
+          class="flex select-none items-center gap-2.5 rounded-control border bg-surface px-2.5 py-2 transition-opacity"
           :class="[
-            locked(user) ? 'cursor-default' : 'cursor-grab active:cursor-grabbing',
-            dragging?.id === user.id ? 'opacity-40' : '',
+            locked(user) ? 'cursor-default' : 'cursor-grab',
+            dragging?.id === user.id ? 'border-dashed border-ink-3 opacity-40' : 'border-line',
             savingId === user.id ? 'opacity-60' : '',
           ]"
           v-tooltip="user.id === meId ? `You can't change your own role` : 'Drag to another group to change the role'"
-          @dragstart="onDragStart($event, user)"
-          @dragend="onDragEnd"
+          @pointerdown="onPointerDown($event, user)"
         >
-          <span v-if="!locked(user)" class="select-none text-[12px] leading-none text-faint" aria-hidden="true">⠿</span>
+          <span
+            v-if="!locked(user)"
+            data-drag-handle
+            class="-m-1.5 touch-none p-1.5 text-[12px] leading-none text-faint"
+            aria-hidden="true"
+          >⠿</span>
           <UserAvatar :id="user.id" :name="user.name" :size="26" />
           <div class="flex min-w-0 flex-1 flex-col">
             <span class="truncate text-[13px] font-medium">{{ user.name }}{{ user.id === meId ? ' (you)' : '' }}</span>
@@ -137,17 +230,17 @@ function onMenu(user: UserSummary, event: Event): void {
             class="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-muted border-r-transparent"
             aria-hidden="true"
           />
-          <select
+          <SelectMenu
             v-else-if="user.id !== meId"
-            :value="''"
+            trigger-label="Move to…"
+            :options="ALL_ROLES.filter((r) => r !== user.role).map((r) => ({ value: r, label: roleLabel(r) }))"
+            :label="`Move ${user.name} to another role`"
+            size="sm"
+            class="w-[100px] shrink-0"
+            :menu-width="170"
             :disabled="savingId !== null"
-            :aria-label="`Move ${user.name} to another role`"
-            class="h-7 w-[86px] shrink-0 cursor-pointer rounded-lg border border-line-input bg-surface px-1.5 text-[12px] text-ink-2 outline-none focus:border-ink disabled:cursor-not-allowed"
-            @change="onMenu(user, $event)"
-          >
-            <option value="" disabled>Move to…</option>
-            <option v-for="role in ALL_ROLES.filter((r) => r !== user.role)" :key="role" :value="role">{{ roleLabel(role) }}</option>
-          </select>
+            @select="(role) => emit('move', user, role as Role)"
+          />
         </li>
       </ul>
 
@@ -159,4 +252,21 @@ function onMenu(user: UserSummary, event: Event): void {
       </p>
     </section>
   </div>
+
+  <!-- The card under the pointer while dragging. -->
+  <Teleport to="body">
+    <div
+      v-if="dragging"
+      class="pointer-events-none fixed left-0 top-0 z-[70] flex items-center gap-2.5 rounded-control border border-ink bg-surface px-2.5 py-2 shadow-toast"
+      :style="ghostStyle"
+      aria-hidden="true"
+    >
+      <span class="text-[12px] leading-none text-faint">⠿</span>
+      <UserAvatar :id="dragging.id" :name="dragging.name" :size="26" />
+      <div class="flex min-w-0 flex-1 flex-col">
+        <span class="truncate text-[13px] font-medium">{{ dragging.name }}</span>
+        <span class="truncate text-[11px] text-muted">{{ dragging.email }}</span>
+      </div>
+    </div>
+  </Teleport>
 </template>

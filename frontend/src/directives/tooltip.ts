@@ -118,6 +118,8 @@ function linkDescription(target: HTMLElement, linked: boolean): void {
 function show(target: HTMLElement): void {
   const state = states.get(target);
   if (!state || isEmpty(state.content)) return;
+  // Passing over other elements while dragging something shouldn't pop up their hints.
+  if (document.documentElement.classList.contains('is-dragging')) return;
   if (state.truncatedOnly && target.scrollWidth <= target.clientWidth && target.scrollHeight <= target.clientHeight) return;
 
   const el = ensureTip();
