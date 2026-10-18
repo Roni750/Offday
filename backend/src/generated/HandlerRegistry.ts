@@ -5,6 +5,7 @@ import { registerHandlerRefs } from "commoneventframework";
 import * as __cef_handlers_auth from "../handlers/auth";
 import * as __cef_handlers_health from "../handlers/health";
 import * as __cef_handlers_requests from "../handlers/requests";
+import * as __cef_handlers_review from "../handlers/review";
 
 export class HandlerRegistry {
 	static register(): void {
@@ -24,6 +25,14 @@ export class HandlerRegistry {
 			"handlers/requests#parseWithdraw": __cef_handlers_requests.parseWithdraw,
 			"handlers/requests#updateRequest": __cef_handlers_requests.updateRequest,
 			"handlers/requests#withdrawRequest": __cef_handlers_requests.withdrawRequest,
+			"handlers/review#approveRequest": __cef_handlers_review.approveRequest,
+			"handlers/review#listOffice": __cef_handlers_review.listOffice,
+			"handlers/review#overview": __cef_handlers_review.overview,
+			"handlers/review#parseApprove": __cef_handlers_review.parseApprove,
+			"handlers/review#parseListOffice": __cef_handlers_review.parseListOffice,
+			"handlers/review#parseOverview": __cef_handlers_review.parseOverview,
+			"handlers/review#parseReject": __cef_handlers_review.parseReject,
+			"handlers/review#rejectRequest": __cef_handlers_review.rejectRequest,
 		});
 	}
 }

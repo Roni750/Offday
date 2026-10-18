@@ -109,6 +109,19 @@ paths:
         "200": { description: "{ items, total, page, pageSize }" }
 
   /requests:
+    get:
+      tags: [Review]
+      x-inputParser: handlers/review#parseListOffice
+      x-handler: handlers/review#listOffice
+      summary: All requests in the caller's office (Validator, OfficeAdmin)
+      parameters:
+        - { in: query, name: status, schema: { type: string, enum: [Pending, Approved, Rejected] } }
+        - { in: query, name: userId, schema: { type: integer } }
+        - { in: query, name: page, schema: { type: integer, default: 1 } }
+        - { in: query, name: pageSize, schema: { type: integer, default: 6 } }
+      responses:
+        "200": { description: "{ items, total, page, pageSize, counts }" }
+        "403": { $ref: "#/components/responses/Error" }
     post:
       tags: [My requests]
       x-inputParser: handlers/requests#parseCreate
@@ -150,3 +163,48 @@ paths:
       responses:
         "204": { description: Withdrawn }
         "409": { $ref: "#/components/responses/Error" }
+
+  /requests/:id/approve:
+    post:
+      tags: [Review]
+      x-inputParser: handlers/review#parseApprove
+      x-handler: handlers/review#approveRequest
+      summary: Approve a Pending request (ApproveVacationRequestCommand)
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: The approved request }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /requests/:id/reject:
+    post:
+      tags: [Review]
+      x-inputParser: handlers/review#parseReject
+      x-handler: handlers/review#rejectRequest
+      summary: Reject a Pending request with a comment (RejectVacationRequestCommand)
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [comment]
+              properties:
+                comment: { type: string, maxLength: 500 }
+      responses:
+        "200": { description: The rejected request }
+        "400": { $ref: "#/components/responses/Error" }
+
+  /stats/overview:
+    get:
+      tags: [Review]
+      x-inputParser: handlers/review#parseOverview
+      x-handler: handlers/review#overview
+      summary: Office KPIs and monthly chart data (Validator, OfficeAdmin)
+      parameters:
+        - { in: query, name: year, schema: { type: integer } }
+      responses:
+        "200": { description: Overview }
