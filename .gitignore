@@ -6,3 +6,4 @@ dist/
 *.log
 .idea/
 backend/.env.lambda
+backend/tests/e2e/server.log
