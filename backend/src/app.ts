@@ -8,6 +8,9 @@ import { CreateVacationRequestCommand, CreateVacationRequestHandler } from "./co
 import { RejectVacationRequestCommand, RejectVacationRequestHandler } from "./commands/vacation/RejectVacationRequest";
 import { UpdateVacationRequestCommand, UpdateVacationRequestHandler } from "./commands/vacation/UpdateVacationRequest";
 import { WithdrawVacationRequestCommand, WithdrawVacationRequestHandler } from "./commands/vacation/WithdrawVacationRequest";
+import { ChangeUserRoleCommand, ChangeUserRoleHandler } from "./commands/office/ChangeUserRole";
+import { UpdateOfficeTimezoneCommand, UpdateOfficeTimezoneHandler } from "./commands/office/UpdateOfficeTimezone";
+import { UpdateOfficeWorkWeekCommand, UpdateOfficeWorkWeekHandler } from "./commands/office/UpdateOfficeWorkWeek";
 import { AuditLogSubscriber, DecisionNotificationSubscriber } from "./events/subscribers";
 import { VacationRequestApprovedEvent, VacationRequestRejectedEvent } from "./events/vacationEvents";
 
@@ -23,3 +26,6 @@ commandBus.register(UpdateVacationRequestCommand, new UpdateVacationRequestHandl
 commandBus.register(WithdrawVacationRequestCommand, new WithdrawVacationRequestHandler());
 commandBus.register(ApproveVacationRequestCommand, new ApproveVacationRequestHandler());
 commandBus.register(RejectVacationRequestCommand, new RejectVacationRequestHandler());
+commandBus.register(ChangeUserRoleCommand, new ChangeUserRoleHandler());
+commandBus.register(UpdateOfficeTimezoneCommand, new UpdateOfficeTimezoneHandler());
+commandBus.register(UpdateOfficeWorkWeekCommand, new UpdateOfficeWorkWeekHandler());
