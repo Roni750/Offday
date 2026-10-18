@@ -4,5 +4,7 @@
 through GitHub's OIDC provider: each run gets short-lived credentials, and no AWS keys are stored in GitHub.
 
 - `trust-policy.json`: only jobs of `Roni750/Offday` running in the `production` environment can assume the role.
+  GitHub puts the owner's and repository's numeric IDs in the `sub` claim (`repo:Roni750@104915367/Offday@1424371615:…`),
+  so a renamed or re-created repository with the same name can't assume it.
 - `deploy-permissions.json`: the role can only read and update the existing `vacation-manager-api` function
   (creating the function, its URL or its execution role stays a one-time manual step, see `backend/scripts/deploy.mjs`).

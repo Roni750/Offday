@@ -8,7 +8,7 @@
       "Condition": {
         "StringEquals": {
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-          "token.actions.githubusercontent.com:sub": "repo:Roni750/Offday:environment:production"
+          "token.actions.githubusercontent.com:sub": "repo:Roni750@104915367/Offday@1424371615:environment:production"
         }
       }
     }
