@@ -42,6 +42,12 @@ export class OverlapError extends DomainError {
 	readonly code = "OVERLAP";
 }
 
+/** An account already exists for this email (emails are unique across all workspaces). */
+export class EmailTakenError extends DomainError {
+	readonly status = 409;
+	readonly code = "EMAIL_TAKEN";
+}
+
 /** The action isn't allowed in the resource's current state (e.g. modifying an approved request). */
 export class InvalidStateError extends DomainError {
 	readonly status = 409;

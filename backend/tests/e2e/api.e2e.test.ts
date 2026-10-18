@@ -2,7 +2,9 @@
 // Tests in this file run in order and build on each other's data.
 import { DateTime } from "luxon";
 import { beforeAll, describe, expect, it } from "vitest";
+import { generateInviteToken, hashInviteToken } from "../../src/auth/inviteTokens";
 import { TEL_AVIV, api, daysFromNow, login, weeksAhead } from "./client";
+import { sql } from "./localDb";
 
 let lina: string, omar: string, noa: string, camille: string, hugo: string, ethan: string;
 let linaId: number, noaId: number;
@@ -379,5 +381,288 @@ describe("read models", () => {
 		expect(res.status).toBe(404);
 		expect(res.body.error.code).toBe("NOT_FOUND");
 		expect((await api("GET", "/requests/mine?status=Weird", { token: lina })).status).toBe(400);
+	});
+});
+
+// Runs last: accepting invites adds people to Tel Aviv and Paris, which the headcounts above don't expect.
+describe("invitations", () => {
+	const INVALID_INVITE = {
+		error: { code: "NOT_FOUND", message: "This invite link is invalid or has expired. Ask your admin for a new one." },
+	};
+	const PASSWORD = "correct horse battery";
+	let telAvivId: number, parisId: number;
+	let emailSeq = 0;
+	const freshEmail = () => `invitee-${Date.now()}-${++emailSeq}@example.com`;
+
+	const create = (token: string, officeId: number, body: Record<string, unknown>) =>
+		api("POST", `/offices/${officeId}/invitations`, { token, body });
+	const preview = (token: unknown) => api("POST", "/invitations/preview", { body: { token } });
+	const accept = (token: unknown, fields: Record<string, unknown> = {}, auth?: string) =>
+		api("POST", "/invitations/accept", { token: auth, body: { token, name: "New Person", email: freshEmail(), password: PASSWORD, ...fields } });
+	const useCount = async (id: number) => (await sql<{ use_count: number }>("SELECT use_count FROM invitations WHERE id = $1", [id]))[0].use_count;
+	const teamLink = async (body: Record<string, unknown> = {}, officeId = telAvivId) => {
+		const res = await create(noa, officeId, { kind: "team", ...body });
+		expect(res.status).toBe(201);
+		return res.body as { invitation: { id: number }; token: string };
+	};
+
+	beforeAll(async () => {
+		const offices = (await api("GET", "/workspace/offices", { token: noa })).body as { id: number; name: string }[];
+		telAvivId = offices.find((o) => o.name === "Tel Aviv")!.id;
+		parisId = offices.find((o) => o.name === "Paris")!.id;
+	});
+
+	describe("creating and listing links", () => {
+		it("creates a team link for the admin's own office, with defaults, and returns the token once", async () => {
+			const res = await create(noa, telAvivId, { kind: "team", label: "  Autumn hires  " });
+			expect(res.status).toBe(201);
+			expect(res.headers.get("cache-control")).toBe("no-store");
+			expect(res.body.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+			expect(res.body.invitation).toMatchObject({
+				kind: "team", label: "Autumn hires", role: "Requester", email: null, maxUses: 25, useCount: 0,
+				revokedAt: null, createdBy: { id: noaId, name: "Noa Levi" }, status: "Active",
+			});
+			const days = (Date.parse(res.body.invitation.expiresAt) - Date.parse(res.body.invitation.createdAt)) / 86_400_000;
+			expect(days).toBeCloseTo(7, 5);
+
+			const list = await api("GET", `/offices/${telAvivId}/invitations`, { token: noa });
+			expect(list.status).toBe(200);
+			expect(list.body[0].id).toBe(res.body.invitation.id);
+			expect(list.text).not.toContain(res.body.token);
+			expect(Object.keys(list.body[0]).sort()).toEqual(
+				["createdAt", "createdBy", "email", "expiresAt", "id", "kind", "label", "maxUses", "revokedAt", "role", "status", "useCount"],
+			);
+		});
+
+		it("creates a personal link for another office of the same workspace", async () => {
+			const res = await create(noa, parisId, { kind: "personal", email: "New.Hire@Example.com", role: "Validator", expiresInDays: 14 });
+			expect(res.status).toBe(201);
+			expect(res.body.invitation).toMatchObject({ kind: "personal", email: "new.hire@example.com", role: "Validator", maxUses: 1 });
+			const ids = (await api("GET", `/offices/${parisId}/invitations`, { token: noa })).body.map((i: { id: number }) => i.id);
+			expect(ids).toContain(res.body.invitation.id);
+			expect((await api("GET", `/offices/${telAvivId}/invitations`, { token: noa })).body.map((i: { id: number }) => i.id))
+				.not.toContain(res.body.invitation.id);
+		});
+
+		it("lists newest first", async () => {
+			const list = (await api("GET", `/offices/${telAvivId}/invitations`, { token: noa })).body as { createdAt: string }[];
+			const times = list.map((i) => Date.parse(i.createdAt));
+			expect(times).toEqual([...times].sort((a, b) => b - a));
+		});
+
+		it("is for workspace admins only", async () => {
+			expect((await create(lina, telAvivId, { kind: "team" })).status).toBe(403);
+			expect((await create(omar, telAvivId, { kind: "team" })).status).toBe(403);
+			expect((await api("GET", `/offices/${telAvivId}/invitations`, { token: omar })).status).toBe(403);
+			expect((await api("POST", `/offices/${telAvivId}/invitations`, { body: { kind: "team" } })).status).toBe(401);
+		});
+
+		it("hides offices of other workspaces (404 on create, list and revoke)", async () => {
+			const { invitation } = await teamLink();
+			expect((await create(ethan, telAvivId, { kind: "team" })).status).toBe(404);
+			expect((await api("GET", `/offices/${telAvivId}/invitations`, { token: ethan })).status).toBe(404);
+			expect((await api("DELETE", `/offices/${telAvivId}/invitations/${invitation.id}`, { token: ethan })).status).toBe(404);
+			// The right workspace but the wrong office is also a 404.
+			expect((await api("DELETE", `/offices/${parisId}/invitations/${invitation.id}`, { token: noa })).status).toBe(404);
+		});
+
+		it("validates the link settings", async () => {
+			const fields = async (body: Record<string, unknown>) => {
+				const res = await create(noa, telAvivId, body);
+				expect(res.status).toBe(400);
+				return res.body.error.details.fields as Record<string, string>;
+			};
+			expect((await fields({ kind: "personal", role: "WorkspaceAdmin" })).email).toBeDefined();
+			expect((await fields({ kind: "team", role: "WorkspaceAdmin", maxUses: 5 })).role).toMatch(/personal/);
+			expect((await fields({ kind: "personal", role: "WorkspaceAdmin", email: "boss@example.com", maxUses: 2 })).maxUses).toBeDefined();
+			expect((await fields({ kind: "personal", role: "WorkspaceAdmin", email: "boss@example.com", expiresInDays: 4 })).expiresInDays).toMatch(/72 hours/);
+			expect((await fields({ kind: "team", maxUses: 0 })).maxUses).toBeDefined();
+			expect((await fields({ kind: "team", maxUses: 201 })).maxUses).toBeDefined();
+			expect((await fields({ kind: "team", expiresInDays: 31 })).expiresInDays).toBeDefined();
+			expect((await fields({ kind: "team", email: "someone@example.com" })).email).toBeDefined();
+			expect((await fields({ kind: "personal", email: "not-an-email" })).email).toBeDefined();
+			expect((await fields({ kind: "team", label: "x".repeat(81) })).label).toBeDefined();
+			expect((await fields({ kind: "everyone" })).kind).toBeDefined();
+		});
+
+		it("allows a workspace admin link only as a personal link that expires within 72 hours", async () => {
+			const res = await create(noa, telAvivId, { kind: "personal", role: "WorkspaceAdmin", email: "boss@example.com" });
+			expect(res.status).toBe(201);
+			const hours = (Date.parse(res.body.invitation.expiresAt) - Date.parse(res.body.invitation.createdAt)) / 3_600_000;
+			expect(hours).toBeCloseTo(72, 5);
+		});
+
+		it("the database refuses a looser admin link even if the API didn't", async () => {
+			const insert = sql(
+				`INSERT INTO invitations (office_id, role, token_hash, max_uses, expires_at) VALUES ($1, 'WorkspaceAdmin', $2, 5, now() + interval '1 day')`,
+				[telAvivId, hashInviteToken(generateInviteToken())],
+			);
+			await expect(insert).rejects.toThrow(/invitations_admin_guard/);
+		});
+	});
+
+	describe("previewing and refusing links", () => {
+		it("shows names only (no ids) for a usable link", async () => {
+			const { token } = await teamLink({ role: "Validator" });
+			const res = await preview(token);
+			expect(res.status).toBe(200);
+			expect(res.headers.get("cache-control")).toBe("no-store");
+			expect(res.body).toEqual({
+				workspace: { name: "Acme" }, office: { name: "Tel Aviv" }, role: "Validator", email: null, expiresAt: expect.any(String),
+			});
+		});
+
+		it("answers every unusable link with the same 404 body, byte for byte", async () => {
+			const revoked = await teamLink();
+			expect((await api("DELETE", `/offices/${telAvivId}/invitations/${revoked.invitation.id}`, { token: noa })).status).toBe(204);
+
+			const expired = await teamLink();
+			await sql(`UPDATE invitations SET created_at = now() - interval '10 days', expires_at = now() - interval '1 minute' WHERE id = $1`,
+				[expired.invitation.id]);
+
+			const usedUp = await teamLink({ maxUses: 1 });
+			expect((await accept(usedUp.token)).status).toBe(201);
+
+			const unusable: unknown[] = [
+				generateInviteToken(), // unknown
+				"not-a-token", // malformed
+				`${generateInviteToken().slice(0, 42)}=`,
+				12345,
+				undefined,
+				revoked.token,
+				expired.token,
+				usedUp.token,
+			];
+			const expected = JSON.stringify(INVALID_INVITE);
+			for (const token of unusable) {
+				const p = await preview(token);
+				expect(p.status).toBe(404);
+				expect(p.text).toBe(expected);
+				const a = await accept(token);
+				expect(a.status).toBe(404);
+				expect(a.text).toBe(expected);
+			}
+
+			const list = (await api("GET", `/offices/${telAvivId}/invitations`, { token: noa })).body as { id: number; status: string }[];
+			const statusOf = (id: number) => list.find((i) => i.id === id)!.status;
+			expect([statusOf(revoked.invitation.id), statusOf(expired.invitation.id), statusOf(usedUp.invitation.id)]).toEqual(["Revoked", "Expired", "UsedUp"]);
+		});
+
+		it("revoking is idempotent", async () => {
+			const { invitation } = await teamLink();
+			expect((await api("DELETE", `/offices/${telAvivId}/invitations/${invitation.id}`, { token: noa })).status).toBe(204);
+			expect((await api("DELETE", `/offices/${telAvivId}/invitations/${invitation.id}`, { token: noa })).status).toBe(204);
+			const events = await sql("SELECT 1 FROM audit_log WHERE event_type = 'InvitationRevoked' AND entity_id = $1", [invitation.id]);
+			expect(events).toHaveLength(1);
+		});
+
+		it("stops working when its creator is no longer a workspace admin", async () => {
+			const hugoId = (await api("GET", "/me", { token: hugo })).body.id;
+			const res = await create(hugo, parisId, { kind: "team" });
+			expect(res.status).toBe(201);
+			expect((await preview(res.body.token)).status).toBe(200);
+
+			await api("PUT", `/users/${hugoId}/role`, { token: noa, body: { role: "Validator" } });
+			try {
+				const p = await preview(res.body.token);
+				expect(p.status).toBe(404);
+				expect(p.text).toBe(JSON.stringify(INVALID_INVITE));
+				expect((await accept(res.body.token)).status).toBe(404);
+			} finally {
+				await api("PUT", `/users/${hugoId}/role`, { token: noa, body: { role: "WorkspaceAdmin" } });
+			}
+		});
+	});
+
+	describe("accepting links", () => {
+		it("creates the account in the link's office with the link's role, and signs it in", async () => {
+			const { invitation, token } = await teamLink({ role: "Validator", maxUses: 5 }, parisId);
+			const email = freshEmail();
+			// A signed-in caller's Authorization header is ignored: the account is created from the link.
+			const res = await accept(token, { name: "  Zoé Martin  ", email: email.toUpperCase() }, lina);
+			expect(res.status).toBe(201);
+			expect(res.headers.get("cache-control")).toBe("no-store");
+			expect(res.body.user).toMatchObject({ name: "Zoé Martin", email, role: "Validator", office: { id: parisId, name: "Paris" }, workspace: { name: "Acme" } });
+
+			const me = await api("GET", "/me", { token: res.body.token });
+			expect(me.body).toMatchObject({ email, role: "Validator", office: { name: "Paris" } });
+			const signIn = await api("POST", "/auth/login", { body: { email, password: PASSWORD } });
+			expect(signIn.status).toBe(200);
+			expect(await useCount(invitation.id)).toBe(1);
+
+			const audit = await sql<{ event_type: string; payload: string }>(
+				"SELECT event_type, payload::text AS payload FROM audit_log WHERE entity_type = 'Invitation' AND entity_id = $1 ORDER BY id",
+				[invitation.id],
+			);
+			expect(audit.map((a) => a.event_type)).toEqual(["InvitationCreated", "InvitationAccepted"]);
+			expect(JSON.parse(audit[1].payload)).toEqual({ userId: res.body.user.id, email, role: "Validator" });
+			const hash = hashInviteToken(token);
+			const everything = (await sql<{ payload: string }>("SELECT payload::text AS payload FROM audit_log")).map((a) => a.payload).join("\n");
+			for (const secret of [token, hash.toString("hex"), hash.toString("base64"), hash.toString("base64url")]) {
+				expect(everything).not.toContain(secret);
+			}
+		});
+
+		it("a personal link works once", async () => {
+			const email = freshEmail();
+			const { token } = (await create(noa, telAvivId, { kind: "personal", email })).body;
+			expect((await accept(token, { email })).status).toBe(201);
+			const again = await accept(token, { email: freshEmail() });
+			expect(again.status).toBe(404);
+			expect(again.text).toBe(JSON.stringify(INVALID_INVITE));
+		});
+
+		it("never goes past its number of uses, even under concurrent accepts", async () => {
+			const { invitation, token } = await teamLink({ maxUses: 3 });
+			const results = await Promise.all(Array.from({ length: 8 }, () => accept(token)));
+			const statuses = results.map((r) => r.status).sort();
+			expect(statuses).toEqual([201, 201, 201, 404, 404, 404, 404, 404]);
+			expect(await useCount(invitation.id)).toBe(3);
+		});
+
+		it("refuses an email that already has an account, without using up the link", async () => {
+			const { invitation, token } = await teamLink();
+			const res = await accept(token, { email: "Lina@acme.io" });
+			expect(res.status).toBe(409);
+			expect(res.body.error).toMatchObject({
+				code: "EMAIL_TAKEN",
+				message: "An account already exists for this email. Sign in instead.",
+				details: { fields: { email: expect.any(String) } },
+			});
+			expect(await useCount(invitation.id)).toBe(0);
+		});
+
+		it("a personal link only accepts its own email, in any letter case", async () => {
+			const email = freshEmail();
+			const { invitation, token } = (await create(noa, telAvivId, { kind: "personal", email })).body;
+			const wrong = await accept(token, { email: freshEmail() });
+			expect(wrong.status).toBe(403);
+			expect(wrong.body.error.message).toBe("This invite is for a different email address.");
+			expect(await useCount(invitation.id)).toBe(0);
+
+			expect((await preview(token)).body.email).toBe(email);
+			expect((await accept(token, { email: email.toUpperCase() })).status).toBe(201);
+		});
+
+		it("enforces the name and password policy", async () => {
+			const { invitation, token } = await teamLink();
+			const email = freshEmail();
+			const field = async (fields: Record<string, unknown>, name: string) => {
+				const res = await accept(token, fields);
+				expect(res.status).toBe(400);
+				expect(res.body.error.details.fields[name]).toBeDefined();
+			};
+			await field({ password: "short-pw1" }, "password"); // 9 characters
+			await field({ password: "é".repeat(37) }, "password"); // 37 characters, 74 bytes
+			await field({ email, password: email.toUpperCase() }, "password");
+			await field({ name: "   " }, "name");
+			await field({ name: "x".repeat(121) }, "name");
+			await field({ email: "nope" }, "email");
+			await field({ password: undefined }, "password");
+			expect(await useCount(invitation.id)).toBe(0);
+
+			// Exactly 72 bytes is fine.
+			expect((await accept(token, { password: "é".repeat(36) })).status).toBe(201);
+		});
 	});
 });

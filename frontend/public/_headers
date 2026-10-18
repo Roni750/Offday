@@ -1,0 +1,6 @@
+# Netlify response headers. The join page URL carries a one-time invite token:
+# never send it to another site, never cache the page, never index it.
+/join/*
+  Referrer-Policy: no-referrer
+  Cache-Control: no-store
+  X-Robots-Tag: noindex

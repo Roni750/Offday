@@ -18,6 +18,7 @@ Each entry follows a short ADR format: **context → decision → alternatives �
 | 11 | One error contract, including for errors raised by the database | API |
 | 12 | No self-registration: accounts belong to an office and are provisioned by an admin | Security / Product |
 | 13 | One ordered release: API before the web app, with backwards-compatible migrations | Delivery |
+| 14 | Invite links are random tokens stored as a SHA-256 hash, shown once, sent in the body, refused with one 404 | Security / Product |
 
 ---
 
@@ -277,6 +278,8 @@ office and role; the backend issues a single-use, expiring invite token (stored 
 own password. This fits the existing architecture as an `InviteUserCommand` and an `AcceptInviteCommand`, with a
 `UserInvitedEvent` delivered by the outbox (#5).
 
+**Update.** The invite flow now exists as shareable links, without email delivery (#14).
+
 ## 13. One ordered release: API before the web app, with backwards-compatible migrations
 
 **Context.** The first setup had two pipelines that didn't know about each other. Netlify built and published the
@@ -335,13 +338,67 @@ minutes) instead of publishing immediately.
 
 ---
 
+## 14. Invite links are random tokens stored as a SHA-256 hash, shown once, sent in the body, refused with one 404
+
+**Context.** #12 left account creation to the seed. Admins need to bring people into an office without a
+public sign-up, and there is no email delivery yet. So the admin creates a **link** for one office and shares
+it however they like (chat, email, in person). Whoever holds the link can create an account in that office,
+with the role the link gives. That makes the link a credential, and it has to be designed like one.
+
+**Decision.**
+- **Two kinds, one table.** A *personal* link is tied to one email and works once (default 7 days). A *team*
+  link has no email and N uses (default 25, at most 200). Every link expires within 30 days, and an admin can
+  revoke it at any time.
+- **Admin rights only through a personal link that expires within 72 hours.** A team link that grants admin
+  rights would be a skeleton key to the whole workspace. A `CHECK` constraint enforces this, and the
+  inputParser repeats it so the API can return a readable 400.
+- **Token: 32 random bytes (base64url, 43 characters), stored as `sha256(token)`** in a unique `bytea` column.
+  With 256 bits of entropy there is nothing to brute-force, so a fast hash is enough, and the lookup stays an
+  indexed equality match. A database leak reveals no usable link.
+- **Shown once.** The create response is the only place the token appears. A lost link is revoked and replaced.
+- **The token travels in a request body** (`POST /invitations/preview`, `POST /invitations/accept`), never in an
+  API URL, which would end up in access logs, proxies and caches. The inputParser hashes it immediately, so
+  handlers, commands, events and logs only see the hash. The page URL `/join/<token>` stays in the browser, served
+  with `Referrer-Policy: no-referrer`, `Cache-Control: no-store` and `X-Robots-Tag: noindex`.
+- **One 404 for every unusable link.** Unknown, malformed, revoked, expired, used up, or created by someone who
+  is no longer an admin of that workspace: the same status and the same body, byte for byte. Someone guessing
+  tokens learns nothing about which links exist.
+- **Authority is checked when the link is used, not only when it's created.** A demoted or removed admin's links
+  stop working, the same way their own token loses its rights at once (#6).
+- **Accepting is a command with a row lock.** A cheap validity check runs first, so garbage never reaches bcrypt.
+  The password is hashed outside the transaction. Inside it, `SELECT … FOR UPDATE` on the invitation, re-check,
+  insert the user with the link's office and role, `use_count + 1`. Concurrent accepts run one after the other,
+  so a link never goes past its uses. The users' email unique index (`23505`) is mapped to the same
+  `409 EMAIL_TAKEN` as the pre-check (#11). `InvitationAccepted` goes to the audit log without the token or hash.
+- **Accepting signs the user in** and returns the same `{ token, user }` as login.
+
+**Alternatives.**
+
+| Option | Verdict |
+|---|---|
+| Signed JWT as the invite token | Can't be revoked or counted without a table anyway, and its payload is readable by whoever holds it |
+| Random token hashed with bcrypt | Salted, so it can't be looked up by hash; every check would scan and compare. Slow hashing buys nothing at 256 bits |
+| **Random token, SHA-256 in a unique column** | Revocable, countable, indexed lookup, nothing usable at rest |
+| Token in the API path (`GET /invitations/:token`) | Simple, but the token lands in access logs and caches |
+| Different errors for expired / revoked / used up | Friendlier, but tells a token-guesser which tokens exist. The admin list shows the real status instead |
+| Email delivery now | Needs an outbox and a provider (#5). Links work today with any channel |
+
+**Consequences.** People join an office without anyone typing their password, and no role is self-assigned.
+The cost is that a shared team link is only as private as the channel it was shared in, which is why it has a
+use count, an expiry, revocation and no admin rights. Joining a second office isn't possible, because a user
+belongs to one office and the email is unique. Rate limiting isn't added: with 256-bit tokens guessing isn't
+practical, and bcrypt only runs for a valid token. Throttling stays on the list below. The seed creates no
+invitation, because a known token in a public repository would be a backdoor into the live demo.
+
+---
+
 ## Known limitations and next steps
 
 | Limitation | Next step |
 |---|---|
 | Notifications are a logging placeholder | Transactional outbox and a delivery worker (#5) |
 | Sign-out doesn't revoke the token (privilege changes already apply immediately) | `tokenVersion` on `users` |
-| Accounts exist only through the seed | Invite flow for WorkspaceAdmins, then SSO (#12) |
-| No login rate limiting | Throttling per IP and per account (API Gateway or a DB counter) |
+| Invite links are shared by hand; no email delivery | Send personal invites through the outbox (#5), then SSO (#12, #14) |
+| No login or invite rate limiting | Throttling per IP and per account (API Gateway or a DB counter) |
 | No live updates for other users | WebSocket API or polling of a lightweight "revision" endpoint |
 | Offset pagination | Keyset pagination if the review queue grows large |

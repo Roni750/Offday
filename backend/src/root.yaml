@@ -12,6 +12,7 @@ tags:
   - name: My requests
   - name: Review
   - name: Office
+  - name: Invitations
   - name: System
 components:
   securitySchemes:
@@ -358,6 +359,104 @@ paths:
         "200": { description: Office }
         "400": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
+
+  /offices/:id/invitations:
+    get:
+      tags: [Invitations]
+      x-inputParser: handlers/invitations#parseListInvitations
+      x-handler: handlers/invitations#listInvitations
+      summary: Invite links of an office of the caller's workspace, newest first (WorkspaceAdmin)
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: "InvitationSummary[] (never the token or its hash)" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    post:
+      tags: [Invitations]
+      x-inputParser: handlers/invitations#parseCreateInvitation
+      x-handler: handlers/invitations#createInvitation
+      summary: Create an invite link for an office of the caller's workspace (WorkspaceAdmin; CreateInvitationCommand)
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind]
+              properties:
+                kind: { type: string, enum: [personal, team] }
+                role: { type: string, enum: [Requester, Validator, WorkspaceAdmin], default: Requester }
+                email: { type: string, description: "Personal links only" }
+                maxUses: { type: integer, minimum: 1, maximum: 200, description: "Team links only, default 25" }
+                expiresInDays: { type: integer, minimum: 1, maximum: 30, description: "Default 7 (3 for admin links, which allow at most 3)" }
+                label: { type: string, maxLength: 80 }
+      responses:
+        "201": { description: "{ invitation: InvitationSummary, token } — the token is returned only here" }
+        "400": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /offices/:officeId/invitations/:invitationId:
+    delete:
+      tags: [Invitations]
+      x-inputParser: handlers/invitations#parseRevokeInvitation
+      x-handler: handlers/invitations#revokeInvitation
+      summary: Revoke an invite link; idempotent (WorkspaceAdmin; RevokeInvitationCommand)
+      parameters:
+        - { in: path, name: officeId, required: true, schema: { type: integer } }
+        - { in: path, name: invitationId, required: true, schema: { type: integer } }
+      responses:
+        "204": { description: Revoked }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /invitations/preview:
+    post:
+      tags: [Invitations]
+      security: []
+      x-inputParser: handlers/invitations#parsePreviewInvitation
+      x-handler: handlers/invitations#previewInvitation
+      summary: What an invite link is for (public; the token travels in the body, never in the URL)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string, minLength: 43, maxLength: 43 }
+      responses:
+        "200": { description: "{ workspace: { name }, office: { name }, role, email, expiresAt }" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /invitations/accept:
+    post:
+      tags: [Invitations]
+      security: []
+      x-inputParser: handlers/invitations#parseAcceptInvitation
+      x-handler: handlers/invitations#acceptInvitation
+      summary: Create an account through an invite link and sign in (public; AcceptInvitationCommand)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, name, email, password]
+              properties:
+                token: { type: string, minLength: 43, maxLength: 43 }
+                name: { type: string, maxLength: 120 }
+                email: { type: string, maxLength: 254 }
+                password: { type: string, minLength: 10, description: "At most 72 bytes in UTF-8, not the email" }
+      responses:
+        "201": { description: "{ token, user } — same shape as POST /auth/login" }
+        "400": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
 
   /holidays:
     get:

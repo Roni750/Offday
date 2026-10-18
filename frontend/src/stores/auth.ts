@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import * as authApi from '@/api/auth';
-import type { Me } from '@/api/types';
+import * as invitationsApi from '@/api/invitations';
+import type { AcceptInvitationForm, LoginResponse, Me } from '@/api/types';
 import { canReview as roleCanReview, homePathFor, isAdmin as roleIsAdmin, roleLabel } from '@/utils/roles';
 import { DEFAULT_WORK_DAYS } from '@/utils/dates';
 
@@ -74,11 +75,20 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  /** Stores a session returned by the API (sign-in or accepting an invite). */
+  function startSession(session: LoginResponse): Me {
+    setToken(session.token);
+    applyMe(session.user);
+    return session.user;
+  }
+
   async function login(email: string, password: string): Promise<Me> {
-    const result = await authApi.login(email, password);
-    setToken(result.token);
-    applyMe(result.user);
-    return result.user;
+    return startSession(await authApi.login(email, password));
+  }
+
+  /** Creates the account through an invite link and signs it in. */
+  async function acceptInvitation(inviteToken: string, form: AcceptInvitationForm): Promise<Me> {
+    return startSession(await invitationsApi.acceptInvitation(inviteToken, form));
   }
 
   /**
@@ -135,7 +145,9 @@ export const useAuthStore = defineStore('auth', () => {
     timezone,
     workDays,
     homePath,
+    startSession,
     login,
+    acceptInvitation,
     ensureMe,
     refreshMe,
     revalidate,

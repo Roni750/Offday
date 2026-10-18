@@ -7,6 +7,9 @@ export const DEMO_PASSWORD = "demo1234";
 export interface ApiResponse<T = any> {
 	status: number;
 	body: T;
+	/** The body exactly as sent, for byte-for-byte comparisons. */
+	text: string;
+	headers: Headers;
 }
 
 export const api = async <T = any>(
@@ -29,7 +32,7 @@ export const api = async <T = any>(
 	} catch {
 		body = text;
 	}
-	return { status: res.status, body: body as T };
+	return { status: res.status, body: body as T, text, headers: res.headers };
 };
 
 export const login = async (email: string): Promise<string> => {
