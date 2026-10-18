@@ -16,6 +16,12 @@ import {
 } from "commoneventframework";
 import { CommonEvent, LambdaEvent } from "commoneventframework/dist/types/commonEvent";
 import { HandlerFn, InputParserFn } from "./handlers/types";
+import { NotFoundError } from "./core/errors";
+import { toErrorResponse } from "./http/respond";
+
+// CEF built-ins that expose runtime metadata; kept for local debugging, hidden on Lambda.
+const LOCAL_ONLY_ROUTES = new Set(["/context", "/dependencies"]);
+const isLambda = () => Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
 
 export const handler = async (
 	event: LambdaEvent,
@@ -25,11 +31,16 @@ export const handler = async (
 	await setLambdaContext(context);
 	const commonEvent: CommonEvent = await buildCommonEvent(event);
 
+	// CEF's dev server answers CORS preflight itself; on Lambda it reaches this handler.
+	if (commonEvent.method === "OPTIONS") {
+		return new Response(204, {});
+	}
+
 	try {
 		const routeConfig = getRouteConfig(commonEvent);
 
-		if (!routeConfig || !routeConfig.handler) {
-			return new Response(404, { error: "Route not found" });
+		if (!routeConfig || !routeConfig.handler || (isLambda() && LOCAL_ONLY_ROUTES.has(commonEvent.path))) {
+			throw new NotFoundError("Route not found");
 		}
 
 		const handlerFn = resolveHandlerRef(routeConfig.handler) as HandlerFn | undefined;
@@ -38,9 +49,10 @@ export const handler = async (
 			: undefined;
 
 		if (!handlerFn) {
-			return new Response(500, { error: `Handler "${routeConfig.handler}" not found` });
+			throw new Error(`Handler "${routeConfig.handler}" not registered`);
 		}
 
+		// inputParsers may throw DomainErrors (validation, authentication); they're mapped below.
 		const input = parserFn ? parserFn(commonEvent) : {};
 		if (input instanceof Response) return input;
 
@@ -51,8 +63,7 @@ export const handler = async (
 		}
 		return new Response(200, result as object);
 	} catch (err) {
-		console.error('handler error', err);
-		return new Response(500, err as object);
+		return toErrorResponse(err);
 	}
 };
 
