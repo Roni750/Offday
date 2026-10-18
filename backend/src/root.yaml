@@ -37,6 +37,17 @@ components:
         startDate: { type: string, format: date-time, example: "2026-11-03T09:00:00+02:00" }
         endDate: { type: string, format: date-time, example: "2026-11-03T13:00:00+02:00" }
         reason: { type: string, maxLength: 240, nullable: true }
+    NewRequest:
+      allOf:
+        - { $ref: "#/components/schemas/Period" }
+        - type: object
+          properties:
+            colleagueIds:
+              type: array
+              maxItems: 9
+              uniqueItems: true
+              description: "Going with: up to 9 colleagues of the caller's office, added automatically (decisions.md #15)"
+              items: { type: integer, minimum: 1 }
   responses:
     Error:
       description: Error in the contract's format
@@ -127,23 +138,23 @@ paths:
       tags: [My requests]
       x-inputParser: handlers/requests#parseCreate
       x-handler: handlers/requests#createRequest
-      summary: Submit a vacation request (CreateVacationRequestCommand)
+      summary: Submit a vacation request, alone or with colleagues (CreateVacationRequestCommand)
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/Period" }
+            schema: { $ref: "#/components/schemas/NewRequest" }
       responses:
-        "201": { description: The created request }
+        "201": { description: "The caller's request plus warnings: colleagues whose Pending time off overlaps ([] when none)" }
         "400": { $ref: "#/components/responses/Error" }
-        "409": { $ref: "#/components/responses/Error" }
+        "409": { description: "OVERLAP: the caller's own overlap (details.conflict) or colleagues with approved time off (details.conflicts)" }
 
   /requests/:id:
     put:
       tags: [My requests]
       x-inputParser: handlers/requests#parseUpdate
       x-handler: handlers/requests#updateRequest
-      summary: Edit an own Pending request (UpdateVacationRequestCommand)
+      summary: Edit an own Pending request; a trip's organizer moves everyone's dates (UpdateVacationRequestCommand)
       parameters:
         - { in: path, name: id, required: true, schema: { type: integer } }
       requestBody:
@@ -152,17 +163,19 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/Period" }
       responses:
-        "200": { description: The updated request }
+        "200": { description: "The updated request plus warnings" }
         "409": { $ref: "#/components/responses/Error" }
     delete:
       tags: [My requests]
       x-inputParser: handlers/requests#parseWithdraw
       x-handler: handlers/requests#withdrawRequest
-      summary: Withdraw an own Pending request (WithdrawVacationRequestCommand)
+      summary: Withdraw an own Pending request, or leave a trip; scope=group cancels a trip for everyone (WithdrawVacationRequestCommand)
       parameters:
         - { in: path, name: id, required: true, schema: { type: integer } }
+        - { in: query, name: scope, schema: { type: string, enum: [self, group], default: self } }
       responses:
         "204": { description: Withdrawn }
+        "403": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
 
   /requests/:id/approve:
@@ -198,6 +211,44 @@ paths:
       responses:
         "200": { description: The rejected request }
         "400": { $ref: "#/components/responses/Error" }
+
+  /groups/:id/approve:
+    post:
+      tags: [Review]
+      x-inputParser: handlers/review#parseApprove
+      x-handler: handlers/review#approveGroup
+      summary: Approve every Pending request of a trip, atomically (ApproveVacationGroupCommand)
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: "VacationRequest[]: the rows that were approved" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /groups/:id/reject:
+    post:
+      tags: [Review]
+      x-inputParser: handlers/review#parseReject
+      x-handler: handlers/review#rejectGroup
+      summary: Reject every Pending request of a trip with one comment, atomically (RejectVacationGroupCommand)
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [comment]
+              properties:
+                comment: { type: string, maxLength: 500 }
+      responses:
+        "200": { description: "VacationRequest[]: the rows that were rejected" }
+        "400": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
 
   /stats/overview:
     get:

@@ -4,8 +4,9 @@ import { Actor } from "../auth/Actor";
 import { VacationStatus } from "../domain/enums";
 import { OfficeCalendar, countWorkingDays } from "../domain/officeTime";
 import { User } from "../domain/User";
+import { VacationGroup } from "../domain/VacationGroup";
 import { VacationRequest } from "../domain/VacationRequest";
-import { toUserSummary, toVacationRequest } from "./serializers";
+import { TripSummary, toUserSummary, toVacationRequest } from "./serializers";
 
 /**
  * Read side. Queries don't change state, so they don't go through the command bus or emit events.
@@ -16,15 +17,81 @@ export const ANNUAL_ALLOWANCE_DAYS = 25;
 
 interface Page { page: number; pageSize: number }
 
-const requestsQuery = (em: EntityManager) =>
+export const requestsQuery = (em: EntityManager) =>
 	em.createQueryBuilder(VacationRequest, "r")
 		.innerJoinAndSelect("r.user", "u")
-		.leftJoinAndSelect("r.decidedBy", "d");
+		.leftJoinAndSelect("r.decidedBy", "d")
+		.leftJoinAndSelect("r.addedBy", "a");
 
-const paginate = async (query: ReturnType<typeof requestsQuery>, { page, pageSize }: Page, calendar: OfficeCalendar) => {
+interface TripMemberRow {
+	groupId: number;
+	organizerId: number | null;
+	organizerName: string | null;
+	requestId: number;
+	userId: number;
+	name: string;
+	status: VacationStatus;
+}
+
+/**
+ * The people of the given trips, in one query: no N+1, and no join on the paginated query (which would duplicate
+ * its rows and break offset pagination). Members are listed organizer first, then by name.
+ */
+export const loadTrips = async (em: EntityManager, groupIds: readonly number[]): Promise<Map<number, TripSummary>> => {
+	const trips = new Map<number, TripSummary>();
+	const ids = [...new Set(groupIds)];
+	if (!ids.length) return trips;
+
+	const rows: TripMemberRow[] = await em.createQueryBuilder(VacationRequest, "r")
+		.innerJoin("r.user", "u")
+		.innerJoin(VacationGroup, "g", "g.id = r.group_id")
+		.leftJoin(User, "o", "o.id = g.organizer_id")
+		.select("r.group_id", "groupId")
+		.addSelect("g.organizer_id", "organizerId")
+		.addSelect("o.name", "organizerName")
+		.addSelect("r.id", "requestId")
+		.addSelect("r.user_id", "userId")
+		.addSelect("u.name", "name")
+		.addSelect("r.status", "status")
+		.where("r.group_id IN (:...ids)", { ids })
+		.orderBy("r.group_id", "ASC")
+		.addOrderBy("CASE WHEN r.user_id = g.organizer_id THEN 0 ELSE 1 END", "ASC")
+		.addOrderBy("u.name", "ASC")
+		.getRawMany();
+
+	for (const row of rows) {
+		let trip = trips.get(row.groupId);
+		if (!trip) {
+			trip = {
+				id: row.groupId,
+				organizer: row.organizerId && row.organizerName ? { id: row.organizerId, name: row.organizerName } : null,
+				members: [],
+			};
+			trips.set(row.groupId, trip);
+		}
+		trip.members.push({ userId: row.userId, name: row.name, requestId: row.requestId, status: row.status });
+	}
+	return trips;
+};
+
+/** Serializes rows loaded with {@link requestsQuery}, with the members of their trips. */
+export const presentRequests = async (em: EntityManager, rows: readonly VacationRequest[], calendar: OfficeCalendar) => {
+	const trips = await loadTrips(em, rows.flatMap((r) => (r.groupId ? [r.groupId] : [])));
+	return rows.map((r) => toVacationRequest(r, calendar, trips));
+};
+
+/** Reloads requests by id with their relations and trips, for command responses. Keeps the order of `ids`. */
+export const presentRequestsById = async (em: EntityManager, ids: readonly number[], calendar: OfficeCalendar) => {
+	if (!ids.length) return [];
+	const rows = await requestsQuery(em).where("r.id IN (:...ids)", { ids: [...ids] }).getMany();
+	const byId = new Map(rows.map((r) => [r.id, r]));
+	return presentRequests(em, ids.flatMap((id) => byId.get(id) ?? []), calendar);
+};
+
+const paginate = async (em: EntityManager, query: ReturnType<typeof requestsQuery>, { page, pageSize }: Page, calendar: OfficeCalendar) => {
 	// offset/limit (not skip/take) is safe here: every join is many-to-one, so rows aren't duplicated.
 	const [rows, total] = await query.offset((page - 1) * pageSize).limit(pageSize).getManyAndCount();
-	return { items: rows.map((r) => toVacationRequest(r, calendar)), total, page, pageSize };
+	return { items: await presentRequests(em, rows, calendar), total, page, pageSize };
 };
 
 /** Tab counts per status for a query, before its status filter is applied. */
@@ -44,7 +111,7 @@ export const listMyRequests = async (em: EntityManager, actor: Actor, filter: Pa
 	const query = requestsQuery(em).where("r.user_id = :userId", { userId: actor.id });
 	const counts = await countByStatus(query);
 	if (filter.status) query.andWhere("r.status = :status", { status: filter.status });
-	return { ...(await paginate(query.orderBy("r.start_date", "DESC"), filter, actor)), counts };
+	return { ...(await paginate(em, query.orderBy("r.start_date", "DESC"), filter, actor)), counts };
 };
 
 export const listOfficeRequests = async (
@@ -70,7 +137,7 @@ export const listOfficeRequests = async (
 		.andWhere("r.user_id <> :me", { me: actor.id })
 		.getCount();
 
-	return { ...(await paginate(query, filter, actor)), counts, awaitingMyReview };
+	return { ...(await paginate(em, query, filter, actor)), counts, awaitingMyReview };
 };
 
 /** Pending and Approved requests of the caller's office that overlap [from, to). */
@@ -82,7 +149,7 @@ export const getTeamCalendar = async (em: EntityManager, actor: Actor, from: Dat
 		.andWhere(new Brackets((q) => q.where("r.start_date < :to", { to }).andWhere("r.end_date > :from", { from })))
 		.orderBy("r.start_date", "ASC")
 		.getMany();
-	return { users: users.map(toUserSummary), requests: requests.map((r) => toVacationRequest(r, actor)) };
+	return { users: users.map(toUserSummary), requests: await presentRequests(em, requests, actor) };
 };
 
 const yearRange = (year: number, timezone: string) => {

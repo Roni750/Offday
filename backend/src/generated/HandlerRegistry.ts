@@ -56,6 +56,7 @@ export class HandlerRegistry {
 			"handlers/requests#parseWithdraw": __cef_handlers_requests.parseWithdraw,
 			"handlers/requests#updateRequest": __cef_handlers_requests.updateRequest,
 			"handlers/requests#withdrawRequest": __cef_handlers_requests.withdrawRequest,
+			"handlers/review#approveGroup": __cef_handlers_review.approveGroup,
 			"handlers/review#approveRequest": __cef_handlers_review.approveRequest,
 			"handlers/review#listOffice": __cef_handlers_review.listOffice,
 			"handlers/review#overview": __cef_handlers_review.overview,
@@ -63,6 +64,7 @@ export class HandlerRegistry {
 			"handlers/review#parseListOffice": __cef_handlers_review.parseListOffice,
 			"handlers/review#parseOverview": __cef_handlers_review.parseOverview,
 			"handlers/review#parseReject": __cef_handlers_review.parseReject,
+			"handlers/review#rejectGroup": __cef_handlers_review.rejectGroup,
 			"handlers/review#rejectRequest": __cef_handlers_review.rejectRequest,
 		});
 	}

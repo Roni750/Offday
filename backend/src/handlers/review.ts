@@ -3,13 +3,12 @@ import { DateTime } from "luxon";
 import { z } from "zod";
 import { commandBus } from "../app";
 import { ApproveVacationRequestCommand } from "../commands/vacation/ApproveVacationRequest";
+import { ApproveVacationGroupCommand, RejectVacationGroupCommand } from "../commands/vacation/DecideVacationGroup";
 import { RejectVacationRequestCommand } from "../commands/vacation/RejectVacationRequest";
 import { REVIEWER_ROLES, VacationStatus } from "../domain/enums";
-import { VacationRequest } from "../domain/VacationRequest";
 import { authenticate, getQuery, pagination, parseIdParam, parseJsonBody, validate } from "../http/parse";
 import { Authenticated, withActor } from "../http/withActor";
-import { getOverview, listOfficeRequests } from "../queries/vacationQueries";
-import { toVacationRequest } from "../queries/serializers";
+import { getOverview, listOfficeRequests, presentRequestsById } from "../queries/vacationQueries";
 import { InputParserFn } from "./types";
 
 // GET /requests (office dashboard)
@@ -28,17 +27,17 @@ export const listOffice = withActor<Authenticated & { filter: z.infer<typeof lis
 	REVIEWER_ROLES,
 );
 
-// POST /requests/:id/approve
+// POST /requests/:id/approve, POST /groups/:id/approve
 export const parseApprove: InputParserFn = (event: CommonEvent) => ({ userId: authenticate(event), id: parseIdParam(event) });
 
 // The role check lives in the command handler (rule 6), against the role just loaded from the database.
 export const approveRequest = withActor<Authenticated & { id: number }>(async ({ id }, actor, em) => {
 	const request = await commandBus.execute(new ApproveVacationRequestCommand(actor, id));
-	const full = await em.findOneOrFail(VacationRequest, { where: { id: request.id }, relations: { user: true, decidedBy: true } });
-	return toVacationRequest(full, actor);
+	const [full] = await presentRequestsById(em, [request.id], actor);
+	return full;
 });
 
-// POST /requests/:id/reject
+// POST /requests/:id/reject, POST /groups/:id/reject
 const rejectSchema = z.object({
 	comment: z.string({ error: "A comment is required" }).trim().min(1, "A comment is required").max(500),
 });
@@ -52,8 +51,19 @@ export const parseReject: InputParserFn = (event: CommonEvent) => ({
 
 export const rejectRequest = withActor<Authenticated & { id: number; comment: string }>(async ({ id, comment }, actor, em) => {
 	const request = await commandBus.execute(new RejectVacationRequestCommand(actor, id, comment));
-	const full = await em.findOneOrFail(VacationRequest, { where: { id: request.id }, relations: { user: true, decidedBy: true } });
-	return toVacationRequest(full, actor);
+	const [full] = await presentRequestsById(em, [request.id], actor);
+	return full;
+});
+
+// Approve all / Reject all for a trip (decisions.md #15). Returns the rows that were decided.
+export const approveGroup = withActor<Authenticated & { id: number }>(async ({ id }, actor, em) => {
+	const decided = await commandBus.execute(new ApproveVacationGroupCommand(actor, id));
+	return presentRequestsById(em, decided.map((r) => r.id), actor);
+});
+
+export const rejectGroup = withActor<Authenticated & { id: number; comment: string }>(async ({ id, comment }, actor, em) => {
+	const decided = await commandBus.execute(new RejectVacationGroupCommand(actor, id, comment));
+	return presentRequestsById(em, decided.map((r) => r.id), actor);
 });
 
 // GET /stats/overview

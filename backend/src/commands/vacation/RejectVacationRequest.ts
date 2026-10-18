@@ -13,22 +13,22 @@ export class RejectVacationRequestCommand extends Command<VacationRequest> {
 	}
 }
 
+export const reject = async (tx: EntityManager, actor: Actor, request: VacationRequest, comment: string) => {
+	request.status = VacationStatus.Rejected;
+	request.comments = comment;
+	request.decidedById = actor.id;
+	request.decidedAt = new Date();
+	const saved = await tx.save(request);
+	return {
+		saved,
+		event: new VacationRequestRejectedEvent(actor.officeId, actor.id, saved.id, { ...periodPayload(saved), comment }),
+	};
+};
+
 export class RejectVacationRequestHandler implements CommandHandler<RejectVacationRequestCommand, VacationRequest> {
 	async execute(cmd: RejectVacationRequestCommand, tx: EntityManager): Promise<CommandOutcome<VacationRequest>> {
-		const request = await lockRequestForReview(tx, cmd.requestId, cmd.actor);
-
-		request.status = VacationStatus.Rejected;
-		request.comments = cmd.comment;
-		request.decidedById = cmd.actor.id;
-		request.decidedAt = new Date();
-		const saved = await tx.save(request);
-
-		return {
-			result: saved,
-			events: [new VacationRequestRejectedEvent(cmd.actor.officeId, cmd.actor.id, saved.id, {
-				...periodPayload(saved),
-				comment: cmd.comment,
-			})],
-		};
+		const { request } = await lockRequestForReview(tx, cmd.requestId, cmd.actor);
+		const { saved, event } = await reject(tx, cmd.actor, request, cmd.comment);
+		return { result: saved, events: [event] };
 	}
 }
