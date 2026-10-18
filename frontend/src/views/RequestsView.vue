@@ -1,0 +1,256 @@
+<script setup lang="ts">
+import { computed, onMounted, ref, watch } from 'vue';
+import { type LocationQueryRaw, useRoute, useRouter } from 'vue-router';
+import * as officeApi from '@/api/office';
+import * as requestsApi from '@/api/requests';
+import type { ReviewPage, UserSummary, VacationRequest } from '@/api/types';
+import PageHeader from '@/components/layout/PageHeader.vue';
+import DecisionButtons from '@/components/requests/DecisionButtons.vue';
+import DataTable from '@/components/ui/DataTable.vue';
+import PaginationBar from '@/components/ui/PaginationBar.vue';
+import SegmentedTabs from '@/components/ui/SegmentedTabs.vue';
+import StatusPill from '@/components/ui/StatusPill.vue';
+import type { SegmentedOption, TableColumn } from '@/components/ui/types';
+import UserAvatar from '@/components/ui/UserAvatar.vue';
+import { useOfficeTime } from '@/composables/useOfficeTime';
+import { useMyRequestsStore } from '@/stores/myRequests';
+import { useReviewStore } from '@/stores/review';
+import { formatDays, periodsOverlap, toUtcIso } from '@/utils/dates';
+import { PAGE_SIZE, STATUS_TABS, type StatusTab, firstName, reasonText, tabToStatus } from '@/utils/requests';
+
+/** The queue opens on Pending; "All" is explicit in the URL. */
+const DEFAULT_TAB: StatusTab = 'Pending';
+
+const route = useRoute();
+const router = useRouter();
+const review = useReviewStore();
+const mine = useMyRequestsStore();
+const time = useOfficeTime();
+
+// ---- Filters live in the URL (?status=&user=&page=) ----------------------------
+
+const status = computed<StatusTab>(() => {
+  const value = route.query.status;
+  return STATUS_TABS.find((tab) => tab === value) ?? DEFAULT_TAB;
+});
+const userId = computed<number | null>(() => Number(route.query.user) || null);
+const page = computed(() => Math.max(1, Number(route.query.page) || 1));
+const hasFilters = computed(() => userId.value !== null || status.value !== 'All');
+
+function setQuery(patch: { status?: StatusTab; user?: number | null; page?: number }): void {
+  const next = {
+    status: patch.status ?? status.value,
+    user: patch.user !== undefined ? patch.user : userId.value,
+    page: patch.page ?? 1,
+  };
+  const query: LocationQueryRaw = {};
+  if (next.status !== DEFAULT_TAB) query.status = next.status;
+  if (next.user) query.user = String(next.user);
+  if (next.page > 1) query.page = String(next.page);
+  void router.replace({ query });
+}
+
+const activeTab = computed({
+  get: () => status.value,
+  set: (tab: StatusTab) => setQuery({ status: tab }),
+});
+
+const selectedUser = computed({
+  get: () => (userId.value === null ? '' : String(userId.value)),
+  set: (value: string) => setQuery({ user: value ? Number(value) : null }),
+});
+
+// ---- Data -------------------------------------------------------------------
+
+const result = ref<ReviewPage | null>(null);
+const users = ref<UserSummary[]>([]);
+const loading = ref(false);
+/** request id → names of approved teammates off during it. */
+const overlaps = ref<Map<number, string[]>>(new Map());
+let seq = 0;
+
+async function loadOverlaps(items: VacationRequest[]): Promise<void> {
+  const pending = items.filter((r) => r.status === 'Pending');
+  if (!pending.length) {
+    overlaps.value = new Map();
+    return;
+  }
+  const from = pending.map((r) => r.startDate).sort()[0] ?? '';
+  const to = pending.map((r) => r.endDate).sort().at(-1) ?? '';
+  try {
+    const calendar = await officeApi.getTeamCalendar(
+      toUtcIso(time.toLocal(from)),
+      toUtcIso(time.toLocal(to)),
+    );
+    const approved = calendar.requests.filter((r) => r.status === 'Approved').map((r) => ({ r, p: time.period(r) }));
+    const map = new Map<number, string[]>();
+    for (const request of pending) {
+      const p = time.period(request);
+      const names = approved
+        .filter(({ r, p: other }) => r.user.id !== request.user.id && periodsOverlap(p.start, p.end, other.start, other.end))
+        .map(({ r }) => r.user.name);
+      if (names.length) map.set(request.id, [...new Set(names)]);
+    }
+    overlaps.value = map;
+  } catch {
+    overlaps.value = new Map();
+  }
+}
+
+async function load(): Promise<void> {
+  const id = ++seq;
+  loading.value = true;
+  try {
+    const data = await requestsApi.listOfficeRequests({
+      status: tabToStatus(status.value),
+      userId: userId.value ?? undefined,
+      page: page.value,
+      pageSize: PAGE_SIZE,
+    });
+    if (id !== seq) return;
+    // A decision can empty the last page: step back instead of showing nothing.
+    if (!data.items.length && page.value > 1) {
+      setQuery({ page: Math.max(1, Math.ceil(data.total / PAGE_SIZE)) });
+      return;
+    }
+    result.value = data;
+    void loadOverlaps(data.items);
+  } catch {
+    // Toast already shown by the HTTP interceptor.
+  } finally {
+    if (id === seq) loading.value = false;
+  }
+}
+
+watch([status, userId, page, () => review.revision, () => mine.revision], load, { immediate: true });
+
+onMounted(async () => {
+  try {
+    users.value = await officeApi.listOfficeUsers();
+  } catch {
+    users.value = [];
+  }
+});
+
+// ---- View -------------------------------------------------------------------
+
+const tabOptions = computed<SegmentedOption<StatusTab>[]>(() => {
+  const counts = result.value?.counts;
+  return STATUS_TABS.map((tab) => ({
+    value: tab,
+    label: tab,
+    count: counts ? (tab === 'All' ? counts.all : counts[tab]) : null,
+  }));
+});
+
+const columns: TableColumn[] = [
+  { key: 'employee', label: 'Employee', width: 'minmax(170px,1.4fr)' },
+  { key: 'dates', label: 'Dates', width: 'minmax(140px,1.2fr)' },
+  { key: 'days', label: 'Days', width: '56px' },
+  { key: 'reason', label: 'Reason', width: 'minmax(110px,1.6fr)' },
+  { key: 'submitted', label: 'Submitted', width: '92px' },
+  { key: 'status', label: 'Status', width: '108px' },
+  { key: 'decision', label: 'Decision', width: '168px', align: 'right' },
+];
+
+function overlapText(names: string[]): string {
+  return names.length === 1 ? `${firstName(names[0] ?? '')} is off` : `${names.length} others off`;
+}
+</script>
+
+<template>
+  <PageHeader title="Requests" />
+
+  <section class="card overflow-hidden">
+    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-line-divider px-5 py-3.5">
+      <SegmentedTabs v-model="activeTab" :options="tabOptions" label="Filter by status" />
+      <div class="flex flex-wrap items-center gap-2.5">
+        <label for="employee-filter" class="text-[13px] text-ink-3">Employee</label>
+        <select
+          id="employee-filter"
+          v-model="selectedUser"
+          class="h-9 min-w-[190px] cursor-pointer rounded-control border border-line-input bg-surface px-2.5 text-[13px] text-ink outline-none focus:border-ink"
+        >
+          <option value="">All employees</option>
+          <option v-for="user in users" :key="user.id" :value="String(user.id)">{{ user.name }}</option>
+        </select>
+        <button
+          v-if="hasFilters"
+          type="button"
+          class="h-9 cursor-pointer px-2.5 text-[13px] text-ink-2 underline hover:text-ink"
+          @click="setQuery({ status: 'All', user: null })"
+        >
+          Reset
+        </button>
+      </div>
+    </div>
+
+    <DataTable
+      :columns="columns"
+      :rows="result?.items ?? []"
+      :loading="loading"
+      :min-width="1000"
+      :skeleton-rows="PAGE_SIZE"
+      dense
+      empty-text="No requests match these filters."
+    >
+      <template #cell-employee="{ row }">
+        <div class="flex min-w-0 items-center gap-2.5">
+          <UserAvatar :id="row.user.id" :name="row.user.name" />
+          <div class="flex min-w-0 flex-col">
+            <span class="whitespace-nowrap font-medium">{{ row.user.name }}</span>
+            <span class="truncate text-[12px] text-muted">{{ row.user.email }}</span>
+          </div>
+        </div>
+      </template>
+      <template #cell-dates="{ row }">
+        <div class="flex flex-col gap-[3px]">
+          <span class="font-medium" :title="time.times(row)">{{ time.range(row) }}</span>
+          <span
+            v-if="overlaps.get(row.id)"
+            class="flex items-center gap-[5px] text-[12px] text-pending-warn"
+            :title="overlaps.get(row.id)?.join(', ')"
+          >
+            <span class="h-1.5 w-1.5 rounded-full bg-pending-dot" />{{ overlapText(overlaps.get(row.id) ?? []) }}
+          </span>
+        </div>
+      </template>
+      <template #cell-days="{ row }">
+        <span class="font-mono">{{ formatDays(row.days) }}d</span>
+      </template>
+      <template #cell-reason="{ row }">
+        <span class="block truncate" :class="row.reason ? 'text-ink' : 'text-faint'" :title="row.reason ?? ''">
+          {{ reasonText(row) }}
+        </span>
+      </template>
+      <template #cell-submitted="{ row }">
+        <span class="font-mono text-[12px] text-ink-3">{{ time.day(row.createdAt) }}</span>
+      </template>
+      <template #cell-status="{ row }">
+        <StatusPill :status="row.status" />
+      </template>
+      <template #cell-decision="{ row }">
+        <DecisionButtons v-if="row.status === 'Pending'" :request="row" />
+        <span v-else-if="row.decidedAt" class="font-mono text-[12px] text-muted" :title="row.decidedBy?.name">
+          on {{ time.day(row.decidedAt) }}
+        </span>
+      </template>
+      <template #below="{ row }">
+        <div
+          v-if="row.status === 'Rejected' && row.comments"
+          class="ml-[42px] rounded-control bg-danger-tint px-3 py-2 text-[13px] leading-[1.45] text-ink-2"
+        >
+          {{ row.comments }}
+        </div>
+      </template>
+    </DataTable>
+
+    <PaginationBar
+      v-if="result"
+      :page="result.page"
+      :page-size="result.pageSize"
+      :total="result.total"
+      @update:page="(p) => setQuery({ page: p })"
+    />
+  </section>
+</template>
