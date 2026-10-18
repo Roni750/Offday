@@ -13,7 +13,7 @@ Each entry follows a short ADR format: **context → decision → alternatives �
 | 6 | The JWT carries identity only; permissions are reloaded from the DB on every request | Security |
 | 7 | Multi-tenant from day one: tenancy is derived from the caller, never from the request | Security / Data |
 | 8 | Writes go through the command bus; reads bypass it (CQRS-lite) | Architecture |
-| 9 | One handler for local and Lambda, with the connection strategy chosen per runtime | Infrastructure |
+| 9 | Deployed to AWS Lambda, which CEF is built for; one handler for local and cloud | Infrastructure |
 | 10 | The API is the only path to the data | Security |
 | 11 | One error contract, including for errors raised by the database | API |
 
@@ -180,12 +180,33 @@ builders with serializers, and they never touch the bus.
 **Why.** Pushing reads through a command bus adds ceremony and no guarantees. Separating them keeps the write
 model strict and the read model fast and shaped for the UI.
 
-## 9. One handler for local and Lambda, with the connection strategy chosen per runtime
+## 9. Deployed to AWS Lambda, with one handler for local and cloud
 
-**Decision.** The backend runs on `commoneventframework`. A single `index.ts` handler serves both the local dev
-server and an AWS Lambda Function URL (deployed with a scripted `npm run deploy`). Routing is declared in
-`root.yaml`, an OpenAPI 3 document that is **both the API documentation and the router**, so the docs can't drift
-from the code.
+**Context.** The brief only requires the app to run locally. I still took the time to deploy the API to
+AWS Lambda, because the required framework, `commoneventframework` (CEF), is built around the Lambda event
+model. Running it only as a local server would use half of what the framework is designed for.
+
+**Why Lambda, specifically:**
+- **CEF is Lambda-native.** Its handler signature is the Lambda signature `(event, context)`.
+  `buildCommonEvent` normalizes the Lambda/API Gateway payload into one `CommonEvent`, `setLambdaContext` exposes
+  the invocation context, and `cef-build` bundles the service (esbuild) into the exact zip Lambda expects.
+  The integration code is a few lines, not an adapter layer.
+- **The same code runs everywhere.** CEF's dev server wraps the same exported `handler`, so the local server and
+  Lambda run identical code. Nothing is compiled differently for production, and "works locally" means
+  "works on Lambda".
+- **Low operational cost and fast to integrate.** Lambda, a Function URL and an IAM role were all that was needed:
+  no servers, containers, load balancer or API Gateway to configure. The deploy is one idempotent command,
+  `npm run deploy`. It builds the bundle, creates the function or updates its code and configuration,
+  creates the public Function URL and its permissions on the first run, and injects the environment and the DB CA
+  certificate from `.env.lambda`. Going from "works on my machine" to a live HTTPS endpoint took one script.
+- **Good fit for the workload.** Vacation requests are low-traffic and bursty. Lambda scales to zero when idle,
+  stays within the free tier for a demo, and scales out without any change if traffic grows.
+- **A reviewer can try it with no setup.** The API is live at a public URL, so the frontend can be pointed at it
+  without installing Postgres or running migrations.
+
+**Decision.** A single `index.ts` handler serves both the local dev server and the Lambda Function URL.
+Routing is declared in `root.yaml`, an OpenAPI 3 document that is **both the API documentation and the router**,
+so the docs can't drift from the code.
 
 Serverless-specific choices:
 - **Connections:** Lambda uses the transaction pooler (port 6543) because many short-lived containers would
