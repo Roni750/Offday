@@ -508,6 +508,53 @@ described in [`docs/api-contract.md`](docs/api-contract.md).
 
 ## Deployment
 
+Every push to `main` is released by one ordered pipeline. The web app is never published ahead of the API it
+talks to, and nothing reaches production from a commit whose checks failed.
+
+```mermaid
+flowchart LR
+    PUSH([push to main]) --> CH
+
+    subgraph CH["Checks · checks.yml"]
+        direction TB
+        F{what changed?} --> BE["backend<br/>typecheck · unit · e2e"]
+        F --> FE["frontend<br/>typecheck · unit · build"]
+    end
+
+    CH -- "all green" --> DEP
+
+    subgraph DEP["Deploy · deploy.yml"]
+        direction LR
+        MIG["DB migrations<br/>(expand only)"] --> API["Lambda<br/>update code"] --> S1{"API smoke test<br/>/health: db up"}
+        S1 -- ok --> WEB["build web app<br/>VITE_API_URL"] --> NET["Netlify<br/>publish --prod"] --> S2{"web smoke test<br/>/ and a deep link"}
+    end
+
+    S1 -- fail --> STOP([stop: web app not published])
+```
+
+| What changed on `main` | Checks | Deploy |
+|---|---|---|
+| `backend/src/**`, backend dependencies, build or deploy config | backend | migrations → API |
+| `frontend/**` | frontend | web app |
+| both | both | API, then web app |
+| backend tests, docs, env examples | backend (if under `backend/`) | nothing |
+
+How the pieces fit:
+
+- **One gate, one order.** `checks.yml` runs on every push and pull request. On `main` it calls `deploy.yml` with
+  only the parts that changed. Inside a release, the web job waits for the API job and its smoke test.
+- **No stored AWS keys.** The deploy job signs in with GitHub's OIDC token and assumes a role that can only update
+  the existing function ([`infra/github-actions/`](infra/github-actions/)).
+- **Netlify keeps deploy previews.** [`frontend/netlify.toml`](frontend/netlify.toml) skips Netlify's own
+  production builds, so the pipeline is the only way to production, but pull requests still get preview URLs.
+- **Serialized deploys.** Each job has its own concurrency group with `cancel-in-progress: false`, so two pushes
+  never deploy at once and a running deploy is never cut off halfway.
+- **Rollback.** Run *Deploy* by hand with an older commit SHA: it redeploys that commit's API and web app. The
+  web app alone can also be rolled back instantly from Netlify's deploy list. Database migrations only move
+  forward, which is why they must stay backwards compatible (see [decisions.md #13](decisions.md)).
+
+### Deploying by hand
+
 ```mermaid
 flowchart LR
     DEV["npm run deploy"] --> BUILD["cef-build --full<br/>esbuild bundle"]

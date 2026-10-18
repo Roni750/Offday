@@ -17,6 +17,7 @@ Each entry follows a short ADR format: **context → decision → alternatives �
 | 10 | The API is the only path to the data | Security |
 | 11 | One error contract, including for errors raised by the database | API |
 | 12 | No self-registration: accounts belong to an office and are provisioned by an admin | Security / Product |
+| 13 | One ordered release: API before the web app, with backwards-compatible migrations | Delivery |
 
 ---
 
@@ -275,6 +276,62 @@ be self-assigned. The missing piece for production is the **invite flow**: a Wor
 office and role; the backend issues a single-use, expiring invite token (stored hashed); the invitee sets their
 own password. This fits the existing architecture as an `InviteUserCommand` and an `AcceptInviteCommand`, with a
 `UserInvitedEvent` delivered by the outbox (#5).
+
+## 13. One ordered release: API before the web app, with backwards-compatible migrations
+
+**Context.** The first setup had two pipelines that didn't know about each other. Netlify built and published the
+frontend on every push to `main` within a minute or two, without waiting for tests. GitHub Actions tested the
+backend and deployed it minutes later. That leaves two ways to break production:
+- **A window:** for a few minutes after each push, the new web app talks to the old API.
+- **A permanent split:** when the backend deploy fails, the new web app keeps running against the old API until
+  someone notices. This actually happened during development. The `OfficeAdmin` → `WorkspaceAdmin` rename went
+  live on Netlify while the API deploy failed on missing credentials, so the live web app checked for a role the
+  live API didn't return yet.
+
+**Decision.** One pipeline owns production, and it releases in dependency order:
+
+```
+Checks (all green) → DB migrations → API → API smoke test → web build → Netlify publish → web smoke test
+```
+
+- Netlify's own production builds are switched off (`frontend/netlify.toml`). The pipeline publishes with the
+  Netlify CLI after the API's smoke test passes. Pull request previews still come from Netlify.
+- `checks.yml` calls `deploy.yml` with only the parts that changed. A docs-only push deploys nothing.
+- Deploys are serialized and never cancelled halfway. Production lives in one GitHub environment, which holds the
+  secrets and is where required reviewers can be added.
+- AWS access uses OIDC: a short-lived role that can only update the existing function. No AWS keys are stored.
+
+**Ordering removes the permanent split, not the window.** Between "migrations ran" and "the new Lambda is live",
+the old API runs against the new schema. Between "the new API is live" and "Netlify published", the old web app
+talks to the new API. So every change has to work with the version before it, which is the
+**expand/contract** pattern:
+
+| Step | Release | Example: renaming a role |
+|---|---|---|
+| Expand | N | Add the new enum value. The API accepts and returns both names |
+| Migrate | N+1 | Move the rows to the new value. The web app switches to the new name |
+| Contract | N+2 | Drop the old value once no deployed code uses it |
+
+**The honest exception.** The role rename (#7) was shipped as a single in-place `ALTER TYPE … RENAME VALUE`,
+which breaks the old Lambda the moment the migration runs. That was acceptable here, with no real users and a
+deploy measured in seconds. With real traffic it would be the three-step sequence above.
+
+**Rollback.** Running *Deploy* by hand with an older commit SHA redeploys that commit's API and web app; Netlify
+can also restore any previous web deploy in one click. Migrations only move forward, never down, and expand/contract
+is what makes it safe to roll the code back without rolling the schema back.
+
+**Alternatives.**
+
+| Option | Verdict |
+|---|---|
+| Keep two independent pipelines | Simple, but the web app can run ahead of the API indefinitely |
+| Netlify build hook triggered after the API deploy | Ordered, but Netlify builds with its own environment, so the commit and settings tested in CI aren't what ships |
+| **Publish the CI-built web app from the same pipeline** | One commit, one build, one order; Netlify stays the CDN and preview host |
+| Lambda versions behind an alias for instant API rollback | Would move the Function URL to the alias and change the public API URL; worth it with real traffic |
+
+**Consequences.** A release is one commit moving through one pipeline, and either all of it ships or the part that
+depends on a failure doesn't. The cost is that a frontend-only change now waits for the checks (a couple of
+minutes) instead of publishing immediately.
 
 ---
 
