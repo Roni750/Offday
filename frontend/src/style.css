@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    @apply bg-canvas font-sans text-[14px] text-ink antialiased;
+  }
+  input,
+  select,
+  textarea,
+  button {
+    font-family: inherit;
+  }
+  input[type='date']::-webkit-calendar-picker-indicator {
+    opacity: 0.5;
+    cursor: pointer;
+  }
+}
+
+@layer components {
+  /* Mono uppercase label used for eyebrows and table headers. */
+  .eyebrow {
+    @apply font-mono text-eyebrow uppercase text-muted;
+  }
+  .card {
+    @apply rounded-card border border-line bg-surface;
+  }
+  .field-input {
+    @apply h-[42px] w-full min-w-0 rounded-control border border-line-input bg-surface-subtle px-3 text-[14px] text-ink outline-none transition-colors focus:border-ink focus:bg-surface;
+  }
+  .field-textarea {
+    @apply w-full resize-y rounded-control border border-line-input bg-surface-subtle px-3 py-2.5 text-[14px] text-ink outline-none transition-colors focus:border-ink focus:bg-surface;
+  }
+  /* Declared after the field classes so it wins over their border color, including while focused. */
+  .field-input-error {
+    @apply border-danger-border focus:border-danger-border;
+  }
+  .table-head {
+    @apply border-b border-line-divider bg-surface-subtle px-5 py-2.5 font-mono text-eyebrow uppercase tracking-[0.05em] text-muted;
+  }
+}
