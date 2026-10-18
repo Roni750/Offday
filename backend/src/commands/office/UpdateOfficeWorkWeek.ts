@@ -3,7 +3,7 @@ import { Actor } from "../../auth/Actor";
 import { Command, CommandHandler, CommandOutcome } from "../../core/CommandBus";
 import { Office } from "../../domain/Office";
 import { OfficeWorkWeekChangedEvent } from "../../events/officeEvents";
-import { assertOfficeAdmin, lockManagedOffice } from "./officeAccess";
+import { assertWorkspaceAdmin, lockManagedOffice } from "./officeAccess";
 
 /**
  * Sets the office's working days. Stored requests don't change; their day counts are derived,
@@ -17,7 +17,7 @@ export class UpdateOfficeWorkWeekCommand extends Command<Office> {
 
 export class UpdateOfficeWorkWeekHandler implements CommandHandler<UpdateOfficeWorkWeekCommand, Office> {
 	async execute(cmd: UpdateOfficeWorkWeekCommand, tx: EntityManager): Promise<CommandOutcome<Office>> {
-		assertOfficeAdmin(cmd.actor, "change the work week");
+		assertWorkspaceAdmin(cmd.actor, "change the work week");
 		const office = await lockManagedOffice(tx, cmd.actor, cmd.officeId);
 
 		const from = [...office.workDays].sort((a, b) => a - b);

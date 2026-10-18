@@ -22,9 +22,9 @@ All bodies are JSON. Protected endpoints need `Authorization: Bearer <token>`.
 ## Roles and tenancy
 
 Workspace (company) → Offices → Users. Vacation requests are scoped to the **caller's office**; there is no cross-office access to requests.
-Office admins administer **every office of their workspace** (time zone, work week, roles). The workspace is the hard tenant boundary: anything in another workspace answers `404`.
+Workspace admins administer **every office of their workspace** (time zone, work week, roles). The workspace is the hard tenant boundary: anything in another workspace answers `404`.
 
-| Capability | Requester | Validator | OfficeAdmin |
+| Capability | Requester | Validator | WorkspaceAdmin |
 |---|---|---|---|
 | Submit / edit / withdraw own Pending requests | ✅ | ✅ | ✅ |
 | Team calendar | ✅ | ✅ | ✅ |
@@ -40,7 +40,7 @@ Office admins administer **every office of their workspace** (time zone, work we
 3. Approved and rejected requests can't be modified or withdrawn.
 4. The start must be on an office-local date **after today** (today itself isn't allowed).
 5. Reject requires a non-empty `comment`.
-6. Only Validator/OfficeAdmin can approve/reject, only within their office, never their own requests.
+6. Only Validator/WorkspaceAdmin can approve/reject, only within their office, never their own requests.
 - A request must include at least one of the office's working days.
 - `reason` is optional, max 240 chars. `comment` max 500 chars.
 - **Day count (`days`)**, computed by the server in office time: the number of the office's working dates the request covers (`office.workDays`, e.g. Sun–Thu in Tel Aviv). A request inside a single working day that lasts under 6h counts as `0.5`.
@@ -49,7 +49,7 @@ Office admins administer **every office of their workspace** (time zone, work we
 ## Objects
 
 ```ts
-type Role = "Requester" | "Validator" | "OfficeAdmin";
+type Role = "Requester" | "Validator" | "WorkspaceAdmin";
 type Status = "Pending" | "Approved" | "Rejected";
 
 interface Me {
@@ -91,7 +91,7 @@ interface VacationRequest {
 | PUT | `/requests/:id` | `{ startDate, endDate, reason? }` | `VacationRequest` (own, Pending only) |
 | DELETE | `/requests/:id` | | `204` withdraw (own, Pending only) |
 
-### Review (Validator, OfficeAdmin)
+### Review (Validator, WorkspaceAdmin)
 | Method | Path | Body | Response |
 |---|---|---|---|
 | GET | `/requests?status=&userId=&page=&pageSize=` | | `Paginated<VacationRequest>` for the office; Pending first, then newest. Response also has `counts: { all, Pending, Approved, Rejected }` respecting `userId`, and `awaitingMyReview` (Pending requests the caller can decide, i.e. not their own) |
@@ -113,17 +113,17 @@ interface Overview {
 | Method | Path | Body | Response |
 |---|---|---|---|
 | GET | `/team/calendar?from=&to=` | | `{ users: UserSummary[], requests: VacationRequest[] }` Pending + Approved overlapping the range |
-| GET | `/office/users` | | `UserSummary[]` (Validator, OfficeAdmin) |
-| PUT | `/users/:id/role` | `{ role }` | `UserSummary` (OfficeAdmin; user in any office of the workspace; can't change own role) |
+| GET | `/office/users` | | `UserSummary[]` (Validator, WorkspaceAdmin) |
+| PUT | `/users/:id/role` | `{ role }` | `UserSummary` (WorkspaceAdmin; user in any office of the workspace; can't change own role) |
 | GET | `/office` | | `{ id, name, timezone, workDays, workspace: { id, name } }` |
-| PUT | `/office/timezone` | `{ timezone }` | same as GET `/office` (OfficeAdmin; must be a valid IANA zone, stored in canonical spelling) |
-| PUT | `/office/work-week` | `{ workDays }` | same as GET `/office` (OfficeAdmin; 1–7 distinct ISO weekdays) |
-| GET | `/holidays?from=&to=&calendars=` | | `{ calendars: { id, label }[], holidays: Holiday[], unavailable: HolidayCalendarId[] }` (Validator, OfficeAdmin; see below) |
+| PUT | `/office/timezone` | `{ timezone }` | same as GET `/office` (WorkspaceAdmin; must be a valid IANA zone, stored in canonical spelling) |
+| PUT | `/office/work-week` | `{ workDays }` | same as GET `/office` (WorkspaceAdmin; 1–7 distinct ISO weekdays) |
+| GET | `/holidays?from=&to=&calendars=` | | `{ calendars: { id, label }[], holidays: Holiday[], unavailable: HolidayCalendarId[] }` (Validator, WorkspaceAdmin; see below) |
 
-### Workspace administration (OfficeAdmin)
+### Workspace administration (WorkspaceAdmin)
 | Method | Path | Body | Response |
 |---|---|---|---|
-| GET | `/workspace/offices` | | `WorkspaceOffice[]`, by name: GET `/office` shape plus `people: { total, Requester, Validator, OfficeAdmin }` and `isMine` |
+| GET | `/workspace/offices` | | `WorkspaceOffice[]`, by name: GET `/office` shape plus `people: { total, Requester, Validator, WorkspaceAdmin }` and `isMine` |
 | GET | `/offices/:id` | | same as GET `/office`, for any office of the workspace |
 | GET | `/offices/:id/users` | | `UserSummary[]` |
 | PUT | `/offices/:id/timezone` | `{ timezone }` | same as PUT `/office/timezone` |
@@ -150,7 +150,7 @@ The login screen shows one card per role (Acme · Tel Aviv):
 |---|---|---|---|
 | Lina Haddad | `lina@acme.io` | Requester | Acme · Tel Aviv (`Asia/Jerusalem`) |
 | Omar Benali | `omar@acme.io` | Validator | Acme · Tel Aviv |
-| Noa Levi | `noa@acme.io` | OfficeAdmin | Acme · Tel Aviv |
+| Noa Levi | `noa@acme.io` | WorkspaceAdmin | Acme · Tel Aviv |
 
 Also seeded: the rest of the Tel Aviv team from the prototype (`sara@`, `mehdi@`, `julia@`, `tom@`, `aya@`, `diego@acme.io`),
 an Acme · Paris office (`Europe/Paris`), and a separate Globex workspace with a Montreal office (`America/Toronto`) to demonstrate tenant isolation.

@@ -46,7 +46,7 @@ The client never computes a day count for a saved request; it always uses the se
 Paris reviewing a Tel Aviv request must see Tel Aviv dates. The browser's time zone is the wrong anchor.
 
 **Decision.** Each office has an IANA time zone (`Asia/Jerusalem`) and a work week (Tel Aviv is Sun–Thu),
-set by the OfficeAdmin.
+set by a workspace admin.
 - The API stores and returns UTC. The client sends ISO strings with an explicit offset.
 - Everything human-facing is computed in **office time**: display, the date pickers, rule 4 ("the start must
   fall on an office-local date after today"), working-day detection and day counts.
@@ -138,7 +138,7 @@ The `EventBus` interface allows an async transport (SQS, EventBridge) later with
 
 ## 6. The JWT carries identity only; permissions are reloaded from the DB on every request
 
-**Context.** A stateless JWT that embeds the role can't be revoked. If an OfficeAdmin demotes a validator, the
+**Context.** A stateless JWT that embeds the role can't be revoked. If a WorkspaceAdmin demotes a validator, the
 old token keeps approving requests until it expires.
 
 **Decision.** The token contains only `sub` (the user id): HS256, an 8h expiry and nothing else. `withActor` loads
@@ -158,9 +158,14 @@ Routes apply a coarse role gate; commands apply fine-grained rules on the `Actor
 **Context.** A vacation tool is naturally SaaS: companies, each with offices in different countries.
 Retrofitting tenancy later is one of the most expensive migrations there is.
 
-**Decision.** `Workspace → Office → User → VacationRequest`, plus a third role, **OfficeAdmin**, who manages roles,
-the office time zone and the work week. Every query and command is scoped by `actor.officeId`, which comes from
-the database (#6), never from a URL or body parameter. Another office's resources return 403 or 404.
+**Decision.** `Workspace → Office → User → VacationRequest`, plus a third role, **WorkspaceAdmin**, who manages roles,
+time zones and work weeks in every office of their workspace. Requests, reviews and the calendar are scoped by
+`actor.officeId`; administration is scoped by `actor.workspaceId`. Both come from the database (#6), never from a
+URL or body parameter. Anything in another workspace returns 404.
+
+The role started as *OfficeAdmin*, limited to one office. Once admins could manage every office of the workspace,
+the name no longer matched what the role does, so it was renamed (migration `WorkspaceAdminRole`, which renames the
+Postgres enum value in place). Admins can't change their own role, so a workspace always keeps at least one admin.
 
 **Consequences.** Cross-tenant access is impossible by construction, not by convention. The seed data includes
 a second office and a separate workspace specifically to demonstrate (and test) isolation.

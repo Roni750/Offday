@@ -24,7 +24,7 @@ const DEMO_PASSWORD = 'demo1234';
 const DEMO_ACCOUNTS: DemoAccount[] = [
   { name: 'Lina Haddad', email: 'lina@acme.io', role: 'Requester', hue: 300 },
   { name: 'Omar Benali', email: 'omar@acme.io', role: 'Validator', hue: 120 },
-  { name: 'Noa Levi', email: 'noa@acme.io', role: 'OfficeAdmin', hue: 20 },
+  { name: 'Noa Levi', email: 'noa@acme.io', role: 'WorkspaceAdmin', hue: 20 },
 ];
 
 /** Decorative sample rows on the brand panel. */

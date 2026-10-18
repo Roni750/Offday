@@ -43,7 +43,7 @@ const WORKSPACES: SeedWorkspace[] = [
 				users: [
 					{ key: "lina", name: "Lina Haddad", email: "lina@acme.io", role: Role.Requester },
 					{ key: "omar", name: "Omar Benali", email: "omar@acme.io", role: Role.Validator },
-					{ key: "noa", name: "Noa Levi", email: "noa@acme.io", role: Role.OfficeAdmin },
+					{ key: "noa", name: "Noa Levi", email: "noa@acme.io", role: Role.WorkspaceAdmin },
 					{ key: "sara", name: "Sara Kim", email: "sara@acme.io", role: Role.Requester },
 					{ key: "mehdi", name: "Mehdi Alaoui", email: "mehdi@acme.io", role: Role.Requester },
 					{ key: "julia", name: "Julia Novak", email: "julia@acme.io", role: Role.Requester },
@@ -84,7 +84,7 @@ const WORKSPACES: SeedWorkspace[] = [
 				name: "Paris", timezone: "Europe/Paris", reviewer: "camille",
 				users: [
 					{ key: "camille", name: "Camille Martin", email: "camille@acme.io", role: Role.Validator },
-					{ key: "hugo", name: "Hugo Petit", email: "hugo@acme.io", role: Role.OfficeAdmin },
+					{ key: "hugo", name: "Hugo Petit", email: "hugo@acme.io", role: Role.WorkspaceAdmin },
 					{ key: "louis", name: "Louis Bernard", email: "louis@acme.io", role: Role.Requester },
 					{ key: "chloe", name: "Chloé Dubois", email: "chloe@acme.io", role: Role.Requester },
 				],
@@ -101,7 +101,7 @@ const WORKSPACES: SeedWorkspace[] = [
 			{
 				name: "Montreal", timezone: "America/Toronto", reviewer: "marie",
 				users: [
-					{ key: "ethan", name: "Ethan Roy", email: "ethan@globex.com", role: Role.OfficeAdmin },
+					{ key: "ethan", name: "Ethan Roy", email: "ethan@globex.com", role: Role.WorkspaceAdmin },
 					{ key: "marie", name: "Marie Tremblay", email: "marie@globex.com", role: Role.Validator },
 					{ key: "liam", name: "Liam Gagnon", email: "liam@globex.com", role: Role.Requester },
 					{ key: "zoe", name: "Zoé Côté", email: "zoe@globex.com", role: Role.Requester },

@@ -113,7 +113,7 @@ paths:
       tags: [Review]
       x-inputParser: handlers/review#parseListOffice
       x-handler: handlers/review#listOffice
-      summary: All requests in the caller's office (Validator, OfficeAdmin)
+      summary: All requests in the caller's office (Validator, WorkspaceAdmin)
       parameters:
         - { in: query, name: status, schema: { type: string, enum: [Pending, Approved, Rejected] } }
         - { in: query, name: userId, schema: { type: integer } }
@@ -203,7 +203,7 @@ paths:
       tags: [Review]
       x-inputParser: handlers/review#parseOverview
       x-handler: handlers/review#overview
-      summary: Office KPIs and monthly chart data (Validator, OfficeAdmin)
+      summary: Office KPIs and monthly chart data (Validator, WorkspaceAdmin)
       parameters:
         - { in: query, name: year, schema: { type: integer } }
       responses:
@@ -226,7 +226,7 @@ paths:
       tags: [Office]
       x-inputParser: handlers/auth#parseAuthenticated
       x-handler: handlers/office#officeUsers
-      summary: Users of the caller's office (Validator, OfficeAdmin)
+      summary: Users of the caller's office (Validator, WorkspaceAdmin)
       responses:
         "200": { description: "UserSummary[]" }
 
@@ -235,7 +235,7 @@ paths:
       tags: [Office]
       x-inputParser: handlers/office#parseChangeRole
       x-handler: handlers/office#changeRole
-      summary: Change a user's role (OfficeAdmin; ChangeUserRoleCommand)
+      summary: Change a user's role (WorkspaceAdmin; ChangeUserRoleCommand)
       parameters:
         - { in: path, name: id, required: true, schema: { type: integer } }
       requestBody:
@@ -246,7 +246,7 @@ paths:
               type: object
               required: [role]
               properties:
-                role: { type: string, enum: [Requester, Validator, OfficeAdmin] }
+                role: { type: string, enum: [Requester, Validator, WorkspaceAdmin] }
       responses:
         "200": { description: UserSummary }
         "403": { $ref: "#/components/responses/Error" }
@@ -265,7 +265,7 @@ paths:
       tags: [Office]
       x-inputParser: handlers/office#parseTimezone
       x-handler: handlers/office#updateTimezone
-      summary: Change the office time zone (OfficeAdmin; UpdateOfficeTimezoneCommand)
+      summary: Change the office time zone (WorkspaceAdmin; UpdateOfficeTimezoneCommand)
       requestBody:
         required: true
         content:
@@ -284,7 +284,7 @@ paths:
       tags: [Office]
       x-inputParser: handlers/auth#parseAuthenticated
       x-handler: handlers/office#workspaceOffices
-      summary: Every office of the caller's workspace with its headcount per role (OfficeAdmin)
+      summary: Every office of the caller's workspace with its headcount per role (WorkspaceAdmin)
       responses:
         "200": { description: "WorkspaceOffice[]" }
         "403": { $ref: "#/components/responses/Error" }
@@ -294,7 +294,7 @@ paths:
       tags: [Office]
       x-inputParser: handlers/office#parseOfficeId
       x-handler: handlers/office#getWorkspaceOffice
-      summary: An office of the caller's workspace (OfficeAdmin)
+      summary: An office of the caller's workspace (WorkspaceAdmin)
       parameters:
         - { in: path, name: id, required: true, schema: { type: integer } }
       responses:
@@ -306,7 +306,7 @@ paths:
       tags: [Office]
       x-inputParser: handlers/office#parseOfficeId
       x-handler: handlers/office#workspaceOfficeUsers
-      summary: Users of an office of the caller's workspace (OfficeAdmin)
+      summary: Users of an office of the caller's workspace (WorkspaceAdmin)
       parameters:
         - { in: path, name: id, required: true, schema: { type: integer } }
       responses:
@@ -318,7 +318,7 @@ paths:
       tags: [Office]
       x-inputParser: handlers/office#parseOfficeTimezone
       x-handler: handlers/office#updateTimezone
-      summary: Change an office's time zone (OfficeAdmin of the same workspace; UpdateOfficeTimezoneCommand)
+      summary: Change an office's time zone (WorkspaceAdmin of the same workspace; UpdateOfficeTimezoneCommand)
       parameters:
         - { in: path, name: id, required: true, schema: { type: integer } }
       requestBody:
@@ -340,7 +340,7 @@ paths:
       tags: [Office]
       x-inputParser: handlers/office#parseOfficeWorkWeek
       x-handler: handlers/office#updateWorkWeek
-      summary: Set an office's working days (OfficeAdmin of the same workspace; UpdateOfficeWorkWeekCommand)
+      summary: Set an office's working days (WorkspaceAdmin of the same workspace; UpdateOfficeWorkWeekCommand)
       parameters:
         - { in: path, name: id, required: true, schema: { type: integer } }
       requestBody:
@@ -364,7 +364,7 @@ paths:
       tags: [Office]
       x-inputParser: handlers/holidays#parseHolidays
       x-handler: handlers/holidays#listHolidays
-      summary: Religious holidays in a date range, from Google's public holiday calendars (Validator, OfficeAdmin)
+      summary: Religious holidays in a date range, from Google's public holiday calendars (Validator, WorkspaceAdmin)
       parameters:
         - { in: query, name: from, required: true, schema: { type: string, format: date } }
         - { in: query, name: to, required: true, schema: { type: string, format: date } }
@@ -379,7 +379,7 @@ paths:
       tags: [Office]
       x-inputParser: handlers/office#parseWorkWeek
       x-handler: handlers/office#updateWorkWeek
-      summary: Set the office's working days (OfficeAdmin; UpdateOfficeWorkWeekCommand)
+      summary: Set the office's working days (WorkspaceAdmin; UpdateOfficeWorkWeekCommand)
       requestBody:
         required: true
         content:

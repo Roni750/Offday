@@ -8,7 +8,7 @@ import { formatPeriod } from '@/utils/requests';
 import { useAuthStore } from './auth';
 
 /**
- * Validator / OfficeAdmin decisions: the pending badge count, approve / reject,
+ * Validator / WorkspaceAdmin decisions: the pending badge count, approve / reject,
  * and the reject dialog's target (the dialog lives in the app shell).
  */
 export const useReviewStore = defineStore('review', () => {

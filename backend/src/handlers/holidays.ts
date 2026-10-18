@@ -27,7 +27,7 @@ export const parseHolidays: InputParserFn = (event: CommonEvent) => ({
 	...validate(holidaysQuery, getQuery(event)),
 });
 
-/** Religious holidays to show next to the team calendar (Validator, OfficeAdmin). */
+/** Religious holidays to show next to the team calendar (Validator, WorkspaceAdmin). */
 export const listHolidays = withActor<Authenticated & { from: string; to: string; calendars: HolidayCalendarId[] }>(
 	async ({ from, to, calendars }) => ({
 		calendars: HOLIDAY_CALENDAR_IDS.map((id) => ({ id, label: HOLIDAY_CALENDARS[id].label })),

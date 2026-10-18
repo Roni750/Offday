@@ -31,7 +31,7 @@ export const listWorkspaceOffices = async (em: EntityManager, actor: Actor) => {
 		.getRawMany();
 
 	return offices.map((office) => {
-		const people = { total: 0, Requester: 0, Validator: 0, OfficeAdmin: 0 };
+		const people = { total: 0, Requester: 0, Validator: 0, WorkspaceAdmin: 0 };
 		for (const row of counts.filter((c) => c.officeId === office.id)) {
 			people[row.role] = Number(row.count);
 			people.total += Number(row.count);

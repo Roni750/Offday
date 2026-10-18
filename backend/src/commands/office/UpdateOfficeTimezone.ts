@@ -3,7 +3,7 @@ import { Actor } from "../../auth/Actor";
 import { Command, CommandHandler, CommandOutcome } from "../../core/CommandBus";
 import { Office } from "../../domain/Office";
 import { OfficeTimezoneChangedEvent } from "../../events/officeEvents";
-import { assertOfficeAdmin, lockManagedOffice } from "./officeAccess";
+import { assertWorkspaceAdmin, lockManagedOffice } from "./officeAccess";
 
 /**
  * Stored requests are exact moments, so they don't move; only how they're displayed, and what
@@ -17,7 +17,7 @@ export class UpdateOfficeTimezoneCommand extends Command<Office> {
 
 export class UpdateOfficeTimezoneHandler implements CommandHandler<UpdateOfficeTimezoneCommand, Office> {
 	async execute(cmd: UpdateOfficeTimezoneCommand, tx: EntityManager): Promise<CommandOutcome<Office>> {
-		assertOfficeAdmin(cmd.actor, "change the time zone");
+		assertWorkspaceAdmin(cmd.actor, "change the time zone");
 		const office = await lockManagedOffice(tx, cmd.actor, cmd.officeId);
 
 		const from = office.timezone;

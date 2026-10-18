@@ -35,7 +35,7 @@ export async function withdrawRequest(id: number): Promise<void> {
   await http.delete(`/requests/${id}`);
 }
 
-// ---- Review (Validator, OfficeAdmin) -----------------------------------------
+// ---- Review (Validator, WorkspaceAdmin) -----------------------------------------
 
 /** Office requests, Pending first then newest, with tab counts. */
 export async function listOfficeRequests(query: ReviewQuery = {}): Promise<ReviewPage> {

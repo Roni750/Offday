@@ -42,7 +42,7 @@ async function load(): Promise<void> {
 // Reload on navigation and after any change to requests made elsewhere in the app.
 watch([month, () => mine.revision, () => review.revision, () => auth.timezone], load, { immediate: true });
 
-// ---- Religious holidays (validators and office admins) ---------------------------
+// ---- Religious holidays (validators and workspace admins) ---------------------------
 
 const selectedCalendars = ref<HolidayCalendarId[]>(auth.canReview ? readHolidayPreference() : []);
 const holidays = ref<Holiday[]>([]);

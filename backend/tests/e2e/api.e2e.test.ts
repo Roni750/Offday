@@ -235,8 +235,8 @@ describe("tenant isolation", () => {
 	});
 });
 
-describe("office administration", () => {
-	it("only office admins change roles, never their own, within their workspace", async () => {
+describe("admin permissions", () => {
+	it("only workspace admins change roles, never their own, within their workspace", async () => {
 		expect((await api("PUT", `/users/${linaId}/role`, { token: omar, body: { role: "Validator" } })).status).toBe(403);
 		expect((await api("PUT", `/users/${noaId}/role`, { token: noa, body: { role: "Requester" } })).status).toBe(403);
 		expect((await api("PUT", `/users/${linaId}/role`, { token: ethan, body: { role: "Validator" } })).status).toBe(404);
@@ -258,7 +258,7 @@ describe("office administration", () => {
 		await api("PUT", "/office/timezone", { token: noa, body: { timezone: TEL_AVIV } });
 	});
 
-	it("only office admins set the work week, with valid weekdays, and day counts follow it", async () => {
+	it("only workspace admins set the work week, with valid weekdays, and day counts follow it", async () => {
 		expect((await api("PUT", "/office/work-week", { token: omar, body: { workDays: [1, 2, 3, 4, 5] } })).status).toBe(403);
 		expect((await api("PUT", "/office/work-week", { token: noa, body: { workDays: [] } })).status).toBe(400);
 		expect((await api("PUT", "/office/work-week", { token: noa, body: { workDays: [1, 1, 8] } })).status).toBe(400);
@@ -278,7 +278,7 @@ describe("office administration", () => {
 		expect((await api("GET", "/me", { token: lina })).body.office.workDays).toEqual([1, 2, 3, 4, 7]);
 	});
 
-	it("only office admins change the time zone, and it must be a real IANA zone", async () => {
+	it("only workspace admins change the time zone, and it must be a real IANA zone", async () => {
 		expect((await api("PUT", "/office/timezone", { token: lina, body: { timezone: "Europe/Paris" } })).status).toBe(403);
 		expect((await api("PUT", "/office/timezone", { token: noa, body: { timezone: "Mars/Olympus" } })).status).toBe(400);
 		const changed = await api("PUT", "/office/timezone", { token: noa, body: { timezone: "Europe/Paris" } });
@@ -290,12 +290,12 @@ describe("office administration", () => {
 describe("workspace administration", () => {
 	let parisId: number;
 
-	it("lists the workspace's offices with headcounts, for office admins only", async () => {
+	it("lists the workspace's offices with headcounts, for workspace admins only", async () => {
 		const res = await api("GET", "/workspace/offices", { token: noa });
 		expect(res.status).toBe(200);
 		expect(res.body.map((o: { name: string }) => o.name)).toEqual(["Paris", "Tel Aviv"]);
 		const [paris, telAviv] = res.body;
-		expect(telAviv).toMatchObject({ isMine: true, timezone: TEL_AVIV, people: { total: 9, Requester: 7, Validator: 1, OfficeAdmin: 1 } });
+		expect(telAviv).toMatchObject({ isMine: true, timezone: TEL_AVIV, people: { total: 9, Requester: 7, Validator: 1, WorkspaceAdmin: 1 } });
 		expect(paris).toMatchObject({ isMine: false, timezone: "Europe/Paris", people: { total: 4 } });
 		parisId = paris.id;
 

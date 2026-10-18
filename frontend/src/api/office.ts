@@ -8,13 +8,13 @@ export async function getTeamCalendar(from: string, to: string, options: { quiet
   return data;
 }
 
-/** Validator, OfficeAdmin. */
+/** Validator, WorkspaceAdmin. */
 export async function listOfficeUsers(): Promise<UserSummary[]> {
   const { data } = await http.get<UserSummary[]>('/office/users');
   return data;
 }
 
-/** OfficeAdmin; can't change their own role. */
+/** WorkspaceAdmin; can't change their own role. */
 export async function updateUserRole(id: number, role: Role): Promise<UserSummary> {
   const { data } = await http.put<UserSummary>(`/users/${id}/role`, { role });
   return data;
@@ -25,19 +25,19 @@ export async function getOffice(): Promise<OfficeDetails> {
   return data;
 }
 
-/** OfficeAdmin; `timezone` must be a valid IANA zone. */
+/** WorkspaceAdmin; `timezone` must be a valid IANA zone. */
 export async function updateOfficeTimezone(timezone: string): Promise<OfficeDetails> {
   const { data } = await http.put<OfficeDetails>('/office/timezone', { timezone });
   return data;
 }
 
-/** Working days as ISO weekdays (1 = Monday ... 7 = Sunday). OfficeAdmin only. */
+/** Working days as ISO weekdays (1 = Monday ... 7 = Sunday). WorkspaceAdmin only. */
 export async function updateOfficeWorkWeek(workDays: number[]): Promise<OfficeDetails> {
   const { data } = await http.put<OfficeDetails>('/office/work-week', { workDays });
   return data;
 }
 
-// ---- Workspace administration (OfficeAdmin): any office of the caller's workspace ----
+// ---- Workspace administration (WorkspaceAdmin): any office of the caller's workspace ----
 
 export async function listWorkspaceOffices(): Promise<WorkspaceOffice[]> {
   const { data } = await http.get<WorkspaceOffice[]>('/workspace/offices');

@@ -1,7 +1,7 @@
 export enum Role {
 	Requester = "Requester",
 	Validator = "Validator",
-	OfficeAdmin = "OfficeAdmin",
+	WorkspaceAdmin = "WorkspaceAdmin",
 }
 
 export enum VacationStatus {
@@ -11,7 +11,7 @@ export enum VacationStatus {
 }
 
 /** Roles allowed to review (approve/reject) requests in their office. */
-export const REVIEWER_ROLES: readonly Role[] = [Role.Validator, Role.OfficeAdmin];
+export const REVIEWER_ROLES: readonly Role[] = [Role.Validator, Role.WorkspaceAdmin];
 
 /** Roles that administer the offices of their workspace (time zone, work week, roles). */
-export const ADMIN_ROLES: readonly Role[] = [Role.OfficeAdmin];
+export const ADMIN_ROLES: readonly Role[] = [Role.WorkspaceAdmin];

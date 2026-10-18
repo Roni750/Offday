@@ -64,7 +64,7 @@ async function changeRole(user: UserSummary, event: Event): Promise<void> {
     return;
   }
 
-  const toAdmin = role === 'OfficeAdmin';
+  const toAdmin = role === 'WorkspaceAdmin';
   const confirmed = await confirm({
     title: `Make ${user.name} ${roleLabel(role).toLowerCase()}?`,
     body: toAdmin

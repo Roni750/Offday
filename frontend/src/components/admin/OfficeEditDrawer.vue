@@ -162,8 +162,8 @@ async function saveWeek(): Promise<void> {
  */
 async function moveUser(user: UserSummary, role: Role): Promise<void> {
   if (savingUserId.value !== null || user.role === role) return;
-  if (role === 'OfficeAdmin' || user.role === 'OfficeAdmin') {
-    const toAdmin = role === 'OfficeAdmin';
+  if (role === 'WorkspaceAdmin' || user.role === 'WorkspaceAdmin') {
+    const toAdmin = role === 'WorkspaceAdmin';
     const confirmed = await confirm({
       title: `Make ${user.name} ${roleLabel(role).toLowerCase()}?`,
       body: toAdmin

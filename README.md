@@ -1,7 +1,7 @@
 # Offday
 
 **Vacation requests without the email thread.** Employees submit time off, validators approve or reject it,
-and office admins run their offices' calendars, all scoped to a multi-tenant workspace.
+and workspace admins run their offices' calendars, all scoped to a multi-tenant workspace.
 
 The backend is the heart of the project: a command/event architecture on AWS Lambda, where every business rule
 is enforced at the layer that can actually see the truth, down to a Postgres exclusion constraint that makes
@@ -65,7 +65,7 @@ All passwords are `demo1234`. The login screen has a one-click card for each.
 |---|---|---|---|
 | Lina Haddad | `lina@acme.io` | Requester | Acme · Tel Aviv (`Asia/Jerusalem`, Sun–Thu) |
 | Omar Benali | `omar@acme.io` | Validator | Acme · Tel Aviv |
-| Noa Levi | `noa@acme.io` | OfficeAdmin | Acme · Tel Aviv |
+| Noa Levi | `noa@acme.io` | WorkspaceAdmin | Acme · Tel Aviv |
 
 The seed also creates the rest of the Tel Aviv team, an **Acme · Paris** office (`Europe/Paris`), and a separate
 **Globex** workspace with a Montreal office (`America/Toronto`), so tenant isolation can be seen and tested.
@@ -209,11 +209,11 @@ queue returns its status counts and `awaitingMyReview` in the same response, so 
 | `CreateVacationRequestCommand` | `VacationRequestCreated` | anyone, for themselves |
 | `UpdateVacationRequestCommand` | `VacationRequestUpdated` | owner, Pending only |
 | `WithdrawVacationRequestCommand` | `VacationRequestWithdrawn` | owner, Pending only |
-| `ApproveVacationRequestCommand` | `VacationRequestApproved` | Validator / OfficeAdmin, same office, not own |
-| `RejectVacationRequestCommand` | `VacationRequestRejected` | Validator / OfficeAdmin, with a comment |
-| `ChangeUserRoleCommand` | `UserRoleChanged` | OfficeAdmin, same workspace, not own role |
-| `UpdateOfficeTimezoneCommand` | `OfficeTimezoneChanged` | OfficeAdmin, same workspace |
-| `UpdateOfficeWorkWeekCommand` | `OfficeWorkWeekChanged` | OfficeAdmin, same workspace |
+| `ApproveVacationRequestCommand` | `VacationRequestApproved` | Validator / WorkspaceAdmin, same office, not own |
+| `RejectVacationRequestCommand` | `VacationRequestRejected` | Validator / WorkspaceAdmin, with a comment |
+| `ChangeUserRoleCommand` | `UserRoleChanged` | WorkspaceAdmin, same workspace, not own role |
+| `UpdateOfficeTimezoneCommand` | `OfficeTimezoneChanged` | WorkspaceAdmin, same workspace |
+| `UpdateOfficeWorkWeekCommand` | `OfficeWorkWeekChanged` | WorkspaceAdmin, same workspace |
 
 Three design choices make this layer predictable:
 
@@ -371,7 +371,7 @@ erDiagram
         string name
         string email "unique, lowercase"
         string password "bcrypt hash, never selected by default"
-        enum role "Requester | Validator | OfficeAdmin" }
+        enum role "Requester | Validator | WorkspaceAdmin" }
     VACATION_REQUEST { int id PK
         int user_id FK
         timestamptz start_date
@@ -455,7 +455,7 @@ Tel Aviv request must see Tel Aviv dates, so the **office** time zone, not the b
 - The API stores and returns UTC. The client sends ISO strings with an explicit offset.
 - Display, the date pickers, "after today", working-day detection and day counts are all computed in office time with
   luxon (DST included, verified with mocked clocks).
-- Each office has its own **work week** (Tel Aviv works Sun–Thu), set by its OfficeAdmin. Day counts, the calendar's
+- Each office has its own **work week** (Tel Aviv works Sun–Thu), set by a workspace admin. Day counts, the calendar's
   weekend shading and "must include a working day" all follow it.
 - Time zones are validated and stored in canonical spelling (`europe/paris` → `Europe/Paris`).
 
@@ -481,10 +481,10 @@ described in [`docs/api-contract.md`](docs/api-contract.md).
 | `/login` | Sign in | public |
 | `/requests/mine` | My requests (balance, next time off, history) | all |
 | `/team` | Team calendar (with religious holidays for reviewers) | all |
-| `/dashboard` | Overview KPIs and monthly chart | Validator, OfficeAdmin |
-| `/requests` | Review queue: filters, pagination, approve / reject | Validator, OfficeAdmin |
-| `/admin/users` | Users & roles | OfficeAdmin |
-| `/admin/office` | Office time zones and work weeks | OfficeAdmin |
+| `/dashboard` | Overview KPIs and monthly chart | Validator, WorkspaceAdmin |
+| `/requests` | Review queue: filters, pagination, approve / reject | Validator, WorkspaceAdmin |
+| `/admin/users` | Users & roles | WorkspaceAdmin |
+| `/admin/office` | Office time zones and work weeks | WorkspaceAdmin |
 
 ### Challenges worth mentioning
 

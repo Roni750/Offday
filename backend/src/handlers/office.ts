@@ -83,7 +83,7 @@ export const parseWorkWeek: InputParserFn = (event: CommonEvent) => ({
 export const updateWorkWeek = withActor<Authenticated & { workDays: number[]; officeId?: number }>(async ({ workDays, officeId }, actor) =>
 	toWorkspaceOffice(await commandBus.execute(new UpdateOfficeWorkWeekCommand(actor, officeId ?? actor.officeId, workDays)), actor));
 
-// ---- Workspace administration: any office of the caller's workspace (OfficeAdmin) ----
+// ---- Workspace administration: any office of the caller's workspace (WorkspaceAdmin) ----
 
 // GET /workspace/offices
 export const workspaceOffices = withActor(async (_input, actor, em) => listWorkspaceOffices(em, actor), ADMIN_ROLES);

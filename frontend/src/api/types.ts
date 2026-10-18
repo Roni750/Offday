@@ -3,7 +3,7 @@
  * All timestamps are ISO 8601 strings; the server returns UTC (`...Z`).
  */
 
-export const ROLES = ['Requester', 'Validator', 'OfficeAdmin'] as const;
+export const ROLES = ['Requester', 'Validator', 'WorkspaceAdmin'] as const;
 export type Role = (typeof ROLES)[number];
 
 export const STATUSES = ['Pending', 'Approved', 'Rejected'] as const;

@@ -80,7 +80,7 @@ const columns = computed<TableColumn[]>(() => [
     <section class="card overflow-hidden">
       <CardHeader
         :title="`Offices in ${auth.me?.workspace.name ?? 'your workspace'}`"
-        subtitle="As an office admin you manage every office of the workspace: its time zone, work week and who reviews requests."
+        subtitle="As a workspace admin you manage every office of the workspace: its time zone, work week and who reviews requests."
       />
       <DataTable :columns="columns" :rows="offices" :loading="loading" :min-width="isNarrow ? 0 : 760" :skeleton-rows="2" empty-text="No offices yet.">
         <template #cell-office="{ row }">
@@ -107,7 +107,7 @@ const columns = computed<TableColumn[]>(() => [
           <div class="flex min-w-0 flex-col">
             <span>{{ row.people.total }} {{ row.people.total === 1 ? 'person' : 'people' }}</span>
             <span class="truncate text-[12px] text-muted">
-              {{ row.people.Requester }} req · {{ row.people.Validator }} val · {{ row.people.OfficeAdmin }} admin
+              {{ row.people.Requester }} req · {{ row.people.Validator }} val · {{ row.people.WorkspaceAdmin }} admin
             </span>
           </div>
         </template>

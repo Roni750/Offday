@@ -5,11 +5,11 @@ import { Role } from "../../domain/enums";
 import { Office } from "../../domain/Office";
 
 /**
- * Office admins administer every office of their workspace; the workspace is the tenant boundary.
+ * Workspace admins administer every office of their workspace; the workspace is the tenant boundary.
  * An office of another workspace is reported as missing, so its existence isn't revealed.
  */
-export const assertOfficeAdmin = (actor: Actor, action: string): void => {
-	if (actor.role !== Role.OfficeAdmin) throw new ForbiddenError(`Only office admins can ${action}`);
+export const assertWorkspaceAdmin = (actor: Actor, action: string): void => {
+	if (actor.role !== Role.WorkspaceAdmin) throw new ForbiddenError(`Only workspace admins can ${action}`);
 };
 
 /** Locks the office row for the rest of the transaction. */

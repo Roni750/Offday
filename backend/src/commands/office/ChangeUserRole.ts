@@ -6,7 +6,7 @@ import { Office } from "../../domain/Office";
 import { Role } from "../../domain/enums";
 import { User } from "../../domain/User";
 import { UserRoleChangedEvent } from "../../events/officeEvents";
-import { assertOfficeAdmin } from "./officeAccess";
+import { assertWorkspaceAdmin } from "./officeAccess";
 
 export class ChangeUserRoleCommand extends Command<User> {
 	constructor(readonly actor: Actor, readonly userId: number, readonly role: Role) {
@@ -15,12 +15,12 @@ export class ChangeUserRoleCommand extends Command<User> {
 }
 
 /**
- * Office admins manage roles in every office of their workspace. Changing their own role is blocked,
+ * Workspace admins manage roles in every office of their workspace. Changing their own role is blocked,
  * so an office can't lose its last admin by accident.
  */
 export class ChangeUserRoleHandler implements CommandHandler<ChangeUserRoleCommand, User> {
 	async execute(cmd: ChangeUserRoleCommand, tx: EntityManager): Promise<CommandOutcome<User>> {
-		assertOfficeAdmin(cmd.actor, "change roles");
+		assertWorkspaceAdmin(cmd.actor, "change roles");
 		if (cmd.userId === cmd.actor.id) throw new ForbiddenError("You can't change your own role");
 
 		const user = await tx.findOne(User, { where: { id: cmd.userId }, lock: { mode: "pessimistic_write" } });

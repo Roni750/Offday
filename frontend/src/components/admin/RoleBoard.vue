@@ -21,7 +21,7 @@ const emit = defineEmits<{ move: [user: UserSummary, role: Role] }>();
 const GROUPS: { role: Role; title: string; hint: string }[] = [
   { role: 'Requester', title: 'Requesters', hint: 'Submit their own requests' },
   { role: 'Validator', title: 'Validators', hint: 'Also review the office requests' },
-  { role: 'OfficeAdmin', title: 'Office admins', hint: 'Also manage roles and office settings' },
+  { role: 'WorkspaceAdmin', title: 'Workspace admins', hint: 'Also manage roles and office settings' },
 ];
 
 const byRole = computed(() =>
@@ -89,7 +89,7 @@ function onMenu(user: UserSummary, event: Event): void {
       :aria-label="group.title"
       class="flex min-h-[132px] flex-col gap-2 rounded-xl border-[1.5px] p-2.5 transition-colors"
       :class="[
-        group.role === 'OfficeAdmin' ? 'col-span-2 max-sm:col-span-1' : '',
+        group.role === 'WorkspaceAdmin' ? 'col-span-2 max-sm:col-span-1' : '',
         overRole === group.role
           ? 'border-ink bg-accent-row'
           : canDropOn(group.role)
@@ -111,7 +111,7 @@ function onMenu(user: UserSummary, event: Event): void {
         <div v-for="n in 2" :key="n" class="h-[46px] animate-pulse rounded-control bg-canvas" />
       </div>
 
-      <ul class="flex flex-col gap-1.5" :class="group.role === 'OfficeAdmin' ? 'sm:grid sm:grid-cols-2' : ''">
+      <ul class="flex flex-col gap-1.5" :class="group.role === 'WorkspaceAdmin' ? 'sm:grid sm:grid-cols-2' : ''">
         <li
           v-for="user in byRole[group.role]"
           :key="user.id"
