@@ -19,6 +19,7 @@ Each entry follows a short ADR format: **context → decision → alternatives �
 | 12 | No self-registration: accounts belong to an office and are provisioned by an admin | Security / Product |
 | 13 | One ordered release: API before the web app, with backwards-compatible migrations | Delivery |
 | 14 | Invite links are random tokens stored as a SHA-256 hash, shown once, sent in the body, refused with one 404 | Security / Product |
+| 15 | Vacation with colleagues: one row per person, linked by a group, with the overlap rule split in two | Domain / Concurrency / UX |
 
 ---
 
@@ -392,6 +393,102 @@ invitation, because a known token in a public repository would be a backdoor int
 
 ---
 
+## 15. Vacation with colleagues: one row per person, linked by a group, with the overlap rule split in two
+
+**Context.** People often take time off together: a team trip, a wedding two colleagues are invited to, an offsite
+day. Until now each of them submitted the same dates separately, and the validator reviewed them as unrelated
+requests. A requester should be able to say "I'm going with Dana and Tom" once.
+
+**Product decisions (made by the product owner).**
+1. A requester submits a request **together with up to 9 colleagues** (10 people in total). Colleagues are
+   **added automatically**: there is no invite or accept step. A colleague can **leave the trip** while their own
+   row is Pending.
+2. **UX decision: same office only.** A trip has one set of dates, read in one office time zone and counted against
+   one work week, and it lands in one review queue. Mixing offices would mean showing "09:00" in two zones, counting
+   days with two work weeks and splitting the decision between two offices' validators. Cross-office trips are a
+   later extension (each office would review its own people's rows).
+3. **Overlap rules for colleagues.** Only a colleague's **Approved** time off in the range blocks them: the API
+   answers `409 OVERLAP` and names every blocked colleague (`details.conflicts`). A colleague's **Pending** overlap
+   does **not** block: the request is created, and the `201` carries `warnings` naming them, so the requester can
+   tell them ("Dana Cohen already has a pending request for 12–14 Oct — this may affect her joining you").
+   Rejected requests never block. The **requester's own** rules don't change: their own Pending or Approved overlap
+   is still a `409` with `details.conflict`.
+4. A validator or workspace admin who is **on the trip** can't approve or reject **any** row of it (403), including
+   through the group actions. Deciding your travel companions' time off is deciding your own trip.
+5. **Approve all / Reject all** (`POST /groups/:id/approve`, `POST /groups/:id/reject { comment }`) decide every
+   Pending row of the trip atomically. Per-person approve and reject still work and stay the source of truth: a
+   validator can approve Dana and reject Tom.
+
+**Decision: one row per person, linked by a group.**
+- New table `vacation_groups (id, office_id, organizer_id, created_at)`. `vacation_requests` gains `group_id`
+  (nullable) and `added_by` (nullable; `NULL` means the owner created it). A partial index on `group_id` and a
+  partial unique index on `(group_id, user_id)` keep one row per person per trip.
+- Each person keeps **their own request**: their own status, decision, comment, day count and balance. Counts,
+  the balance, the overview and the calendar didn't need to change, because they already work per row.
+- **The rows share dates.** The organizer edits the trip only while every row is Pending, and the new dates (and
+  reason) apply to everyone. A colleague can't edit their row ("The trip's dates are set by Lina Haddad. Leave the
+  trip to request your own dates."), but can leave it, which deletes only their row.
+- The organizer withdraws with `DELETE /requests/:id?scope=self|group`. `self` (the default) is today's behavior;
+  `group` removes every Pending row of the trip, and decided rows stay. When the last row of a group disappears,
+  the group row is deleted too.
+
+**Decision: the overlap constraint of #4 is split in two.** A colleague with a Pending request may be added to a
+trip that overlaps it, so "no two non-rejected requests of one person overlap" can't hold for trip rows any more.
+What must always hold is that nobody is **approved** twice for the same time.
+
+```sql
+-- Everything a person submits alone: rule 2, unchanged.
+CONSTRAINT vacation_no_overlap_own EXCLUDE USING gist (
+  user_id WITH =, tstzrange(start_date, end_date, '[)') WITH &&
+) WHERE (status <> 'Rejected' AND group_id IS NULL)
+
+-- Everyone, trip or not: never two overlapping approved requests.
+CONSTRAINT vacation_no_overlap_approved EXCLUDE USING gist (
+  user_id WITH =, tstzrange(start_date, end_date, '[)') WITH &&
+) WHERE (status = 'Approved')
+```
+
+- The **requester's** own overlap with any of their Pending/Approved requests (trip or not) is checked by the
+  handler while it holds a lock on the requester's user row. Every create and edit takes that lock, so two
+  submissions by the same person run one after the other and the second one sees the first.
+- **Approving** a row that would overlap another Approved row of the same person is refused with `409 OVERLAP`
+  ("Tom Becker already has approved time off that overlaps this request"). The handler pre-checks it to return a
+  readable error; if a race slips past, the constraint's `23P01` is mapped to the same 409 (#11).
+- **One lock order, so no deadlocks.** Every command takes its locks in the same order: the `vacation_groups` row,
+  then its request rows `ORDER BY id FOR UPDATE`, then user rows in ascending id. Creating a trip locks the
+  requester's and the colleagues' user rows in ascending id, in one statement. A command that starts from a request
+  id reads the row without a lock to find its group, locks the group, then locks the row.
+- **Validation layering (#3).** The inputParser checks the shape: `colleagueIds` are positive integers, at most 9,
+  no duplicates, not the requester. The handler checks the database: every colleague exists **and is in the caller's
+  office**. An unknown id, a user of another office and a user of another workspace get the **same** 400, so the API
+  reveals nothing about who exists elsewhere (#7). The approved overlaps of all colleagues are found in one query,
+  and the 409 lists all of them at once.
+
+**Backwards compatible with the deployed API (#13).** The migration runs while the previous Lambda still serves
+traffic. That code never writes `group_id`, so every row it creates has `group_id IS NULL` and is covered by
+`vacation_no_overlap_own` exactly as before: for those rows the two new constraints are as strict as the old one.
+The new columns are nullable with nothing to backfill, and the old code never reads the new table. The new
+constraints are added before the old one is dropped, in the migration's transaction, so there is no moment without
+protection. Down restores `vacation_no_overlap` after deleting the trip rows that would violate it.
+
+**Alternatives.**
+
+| Option | Verdict |
+|---|---|
+| One request with many participants (a join table) | One status for everyone, so a validator can't approve Dana and reject Tom, and every per-person read (balance, calendar, counts) needs a second code path |
+| Invite and accept | Safer between strangers, but these are teammates in one office and the product owner chose no friction. Leaving is the escape hatch |
+| Keep one constraint and refuse any colleague overlap | Simple, but a colleague's tentative plans would block the whole trip. The owner chose "Approved blocks, Pending warns" |
+| Cross-office trips | Two zones, two work weeks, two queues (see the UX decision above). Later |
+
+**Consequences.** Every per-person read model keeps working unchanged, and a trip is a thin layer on top: one
+batched query per page loads the members of every trip on that page, so there's no N+1 and offset pagination stays
+safe (#8). The cost is a weaker database rule for trip rows: two Pending rows of the same person can overlap, and
+only the "never approved twice" invariant is guaranteed by Postgres. Colleagues are added without being asked,
+which is why they can leave while their row is Pending and why `ColleagueAddedToVacation` has a notification
+placeholder waiting for the outbox (#5).
+
+---
+
 ## Known limitations and next steps
 
 | Limitation | Next step |
@@ -402,3 +499,5 @@ invitation, because a known token in a public repository would be a backdoor int
 | No login or invite rate limiting | Throttling per IP and per account (API Gateway or a DB counter) |
 | No live updates for other users | WebSocket API or polling of a lightweight "revision" endpoint |
 | Offset pagination | Keyset pagination if the review queue grows large |
+| Trips are limited to one office | Cross-office trips, each office reviewing its own people's rows (#15) |
+| Colleagues added to a trip aren't notified | Deliver `ColleagueAddedToVacation` through the outbox (#5, #15) |
