@@ -1,0 +1,2 @@
+# Netlify: the Vue router uses history mode, so every path is served by index.html.
+/*    /index.html   200
