@@ -1,0 +1,23 @@
+{
+  "name": "vacation-manager-backend",
+  "version": "1.0.0",
+  "description": "",
+  "type": "commonjs",
+  "scripts": {
+    "dev": "npx ts-node src/index.ts --local",
+    "build": "cef-build",
+    "build:full": "cef-build --full"
+  },
+  "dependencies": {
+    "commoneventframework": "^1.0.19",
+    "pg": "^8.23.1",
+    "reflect-metadata": "^0.2.2",
+    "typeorm": "^1.1.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.23.1",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.0.0"
+  }
+}

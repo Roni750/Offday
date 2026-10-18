@@ -1,0 +1,12 @@
+openapi: 3.0.3
+info:
+  title: Vacation Manager API
+  version: 1.0.0
+paths:
+  /health:
+    get:
+      x-handler: handlers/health#getHealth
+      summary: Service and database health check
+      responses:
+        '200':
+          description: Service and database are reachable
