@@ -36,7 +36,14 @@ const bars = computed(() => {
     ]
       .filter((s) => s.value > 0)
       .map((s) => ({ ...s, height: `${(s.value / max) * 100}%` })),
-    summary: `${m.approved} approved, ${m.pending} pending, ${m.rejected} rejected`,
+    tooltip: {
+      title: DateTime.fromFormat(m.month, 'yyyy-MM').toFormat('LLLL yyyy'),
+      rows: [
+        { label: 'Approved', value: `${formatDays(m.approved)}d`, swatch: 'bg-chart-approved' },
+        { label: 'Pending', value: `${formatDays(m.pending)}d`, swatch: 'bg-chart-pending' },
+        { label: 'Rejected', value: `${formatDays(m.rejected)}d`, swatch: 'bg-chart-rejected' },
+      ],
+    },
   }));
 });
 </script>
@@ -58,7 +65,7 @@ const bars = computed(() => {
     <div v-if="loading && !data.length" class="h-[220px] animate-pulse rounded-lg bg-canvas" />
     <div v-else-if="isEmpty" class="flex h-[220px] items-center justify-center text-muted">No requested days in these months.</div>
     <div v-else class="flex h-[220px] items-stretch gap-3.5" role="img" aria-label="Requested working days per month">
-      <div v-for="bar in bars" :key="bar.key" class="flex min-w-0 flex-1 flex-col gap-2" :title="`${bar.label}: ${bar.summary}`">
+      <div v-for="bar in bars" :key="bar.key" class="flex min-w-0 flex-1 flex-col gap-2" v-tooltip="bar.tooltip">
         <div class="text-center font-mono text-[12px] text-ink-2">{{ formatDays(bar.total) }}</div>
         <div
           class="flex flex-1 flex-col justify-end overflow-hidden rounded-lg"
